@@ -1,0 +1,19 @@
+name: example
+description: A starting point for Dart libraries or applications.
+# version: 1.0.0
+# homepage: https://www.example.com
+
+environment:
+  sdk: '>=2.8.1 <3.0.0'
+
+dependencies:
+  template_annotation:
+    path: ../template_annotation
+
+dev_dependencies:
+  template_generator:
+    path: ../
+  build_runner:
+  hive_generator: 1.0.1
+  built_value_generator:
+

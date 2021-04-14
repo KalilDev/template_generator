@@ -1,0 +1,8 @@
+builders:
+  template_builder:
+    import: 'package:template_generator/template_generator.dart'
+    builder_factories: ['templateBuilder']
+    build_extensions: { '.dart': ['.t.dart'] }
+    runs_before: ['built_value_generator|built_value','hive_generator|built_value']
+    auto_apply: root_package
+    build_to: source
