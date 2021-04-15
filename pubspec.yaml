@@ -1,16 +1,16 @@
 name: template_generator
 description: An code generator for creating built_value classes based on terse templates
-version: 1.0.0
+version: 1.0.1
 # homepage: https://www.example.com
 
 environment:
   sdk: '>=2.8.1 <3.0.0'
 
 dependencies:
-  build: ^2.0.0
-  source_gen: ^1.0.0
-  analyzer: ^1.3.0
-  path: ^1.8.0
+  build: '>=1.5.0 <3.0.0'
+  source_gen: '>=0.9.0 <2.0.0'
+  analyzer: '>=0.40.0 <2.0.0'
+  path: ^1.7.0
   template_annotation: ^1.0.0
 
 dev_dependencies:
