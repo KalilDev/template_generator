@@ -1,18 +1,17 @@
 name: template_generator
-description: A starting point for Dart libraries or applications.
-# version: 1.0.0
+description: An code generator for creating built_value classes based on terse templates
+version: 1.0.0
 # homepage: https://www.example.com
 
 environment:
   sdk: '>=2.8.1 <3.0.0'
 
 dependencies:
-  build:
-  source_gen:
-  analyzer:
-  path:
-  template_annotation:
-    path: template_annotation
+  build: ^2.0.0
+  source_gen: ^1.0.0
+  analyzer: ^1.3.0
+  path: ^1.8.0
+  template_annotation: ^1.0.0
 
 dev_dependencies:
   pedantic: ^1.9.0
