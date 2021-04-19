@@ -12,7 +12,14 @@ const List<Type> _$serializableTypes = [
   A,
   B,
   C,
+  StateA,
+  StateB,
 ];
+
+void _$registerHiveTypes([HiveInterface /*?*/ hive]) {
+  hive ??= Hive;
+  hive..registerAdapter<C>(CAdapter());
+}
 
 abstract class Foo implements Built<Foo, FooBuilder> {
   Foo._();
@@ -121,6 +128,8 @@ abstract class B implements ABC, Built<B, BBuilder> {
   int get b;
 }
 
+@HiveType(typeId: 10)
+
 /// C class
 abstract class C<T>
     implements GenericInterface<T>, ABC, Built<C<T>, CBuilder<T>> {
@@ -167,10 +176,80 @@ abstract class C<T>
   String cString() => c.toString();
 }
 
+abstract class StateA implements State, Built<StateA, StateABuilder> {
+  StateA._();
+
+  /// Construct an [StateA] from the updates applied to an
+  /// [StateABuilder].
+  factory StateA([void Function(StateABuilder) updates]) =>
+      _$StateA((b) => b..update(updates));
+
+  @override
+  T visit<T>({
+    @required T Function(StateA) a,
+    @required T Function(StateB) b,
+  }) =>
+      a(this);
+
+  @override
+  Map<String, dynamic> toJson() =>
+      serializers.serialize(this) as Map<String, dynamic>;
+
+  /// Deserialize an [StateA] from an json object.
+  static StateA fromJson(Map<String, dynamic> json) =>
+      serializers.deserializeWith(StateA.serializer, json);
+
+  /// The [Serializer] that can serialize and deserialize an [StateA].
+  static Serializer<StateA> get serializer => _$stateASerializer;
+
+  int get b;
+}
+
+abstract class StateB implements State, Built<StateB, StateBBuilder> {
+  StateB._();
+
+  /// Construct an [StateB] from the updates applied to an
+  /// [StateBBuilder].
+  factory StateB([void Function(StateBBuilder) updates]) =>
+      _$StateB((b) => b..update(updates));
+
+  @override
+  T visit<T>({
+    @required T Function(StateA) a,
+    @required T Function(StateB) b,
+  }) =>
+      b(this);
+
+  @override
+  Map<String, dynamic> toJson() =>
+      serializers.serialize(this) as Map<String, dynamic>;
+
+  /// Deserialize an [StateB] from an json object.
+  static StateB fromJson(Map<String, dynamic> json) =>
+      serializers.deserializeWith(StateB.serializer, json);
+
+  /// The [Serializer] that can serialize and deserialize an [StateB].
+  static Serializer<StateB> get serializer => _$stateBSerializer;
+
+  int get b;
+}
+
 @BuiltValue(instantiable: false)
 
 /// ABC class
 abstract class ABC {
+  /// Create an instance of an [A] with the [updates] applied to to
+  /// the [ABuilder].
+  static A a([void Function(ABuilder) updates]) => A(updates);
+
+  /// Create an instance of an [B] with the [updates] applied to to
+  /// the [BBuilder].
+  static B b([void Function(BBuilder) updates]) => B(updates);
+
+  /// Create an instance of an [C] with the [updates] applied to to
+  /// the [CBuilder].
+  static C c([void Function(CBuilder) updates]) => C(updates);
+
   /// Rebuilds the instance.
   ///
   /// The result is the same as this instance but with [updates] applied.
@@ -200,5 +279,46 @@ abstract class ABC {
   });
 
   /// Serialize an [ABC] to an json object.
+  Map<String, dynamic> toJson();
+}
+
+@BuiltValue(instantiable: false)
+abstract class State {
+  /// Create an instance of an [StateA] with the [updates] applied to to
+  /// the [StateABuilder].
+  static StateA a([void Function(StateABuilder) updates]) => StateA(updates);
+
+  /// Create an instance of an [StateB] with the [updates] applied to to
+  /// the [StateBBuilder].
+  static StateB b([void Function(StateBBuilder) updates]) => StateB(updates);
+
+  /// Rebuilds the instance.
+  ///
+  /// The result is the same as this instance but with [updates] applied.
+  /// [updates] is a function that takes a builder [B].
+  ///
+  /// The implementation of this method will be generated for you by the
+  /// built_value generator.
+
+  StateBuilder toBuilder();
+
+  /// Rebuilds the instance.
+  ///
+  /// The result is the same as this instance but with [updates] applied.
+  /// [updates] is a function that takes a builder [B].
+  ///
+  /// The implementation of this method will be generated for you by the
+  /// built_value generator.
+
+  State rebuild(void Function(StateBuilder) updates);
+
+  /// Visit every member of the union [State]. Prefer this over explicit
+  /// `as` checks because it is exaustive, therefore safer.
+  T visit<T>({
+    @required T Function(StateA) a,
+    @required T Function(StateB) b,
+  });
+
+  /// Serialize an [State] to an json object.
   Map<String, dynamic> toJson();
 }

@@ -1,7 +1,8 @@
 const template = Template();
 
 class Template {
-  const Template();
+  const Template({this.hiveType});
+  final int hiveType;
 }
 
 class Union {

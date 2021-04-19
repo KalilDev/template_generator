@@ -1,4 +1,4 @@
-import 'package:template_generator/annotation.dart';
+import 'package:template_annotation/template_annotation.dart';
 import 'package:built_value/built_value.dart';
 import 'package:hive/hive.dart';
 import 'package:meta/meta.dart';
@@ -36,7 +36,7 @@ abstract class __B {
 
 abstract class GenericInterface<T> {}
 
-@template
+@Template(hiveType: 10)
 
 /// C class
 abstract class __C<T> implements GenericInterface<T> {
@@ -63,3 +63,16 @@ abstract class __C<T> implements GenericInterface<T> {
 
 /// ABC class
 abstract class __ABC {}
+
+@template
+abstract class __StateA {
+  int get b;
+}
+
+@template
+abstract class __StateB {
+  int get b;
+}
+
+@Union({__StateA, __StateB})
+abstract class __State {}

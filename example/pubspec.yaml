@@ -7,13 +7,12 @@ environment:
   sdk: '>=2.8.1 <3.0.0'
 
 dependencies:
-  template_annotation:
-    path: ../template_annotation
+  template_annotation: ^1.1.0
 
 dev_dependencies:
   template_generator:
     path: ../
   build_runner:
-  hive_generator: 1.0.1
+  hive_generator: 
   built_value_generator:
 

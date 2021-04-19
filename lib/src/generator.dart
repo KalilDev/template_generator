@@ -6,16 +6,24 @@ import 'package:build/build.dart';
 import 'package:build/src/builder/build_step.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/src/dart/element/element.dart';
-
+import 'package:hive/hive.dart' show HiveType;
 import 'package:source_gen/source_gen.dart';
 import 'package:template_annotation/template_annotation.dart';
 import 'package:path/path.dart' as p;
 import 'package:source_gen/src/output_helpers.dart';
+import 'package:tuple/tuple.dart';
 
-extension _Bind<T> on Iterable<T> {
+extension _IterableE<T> on Iterable<T> {
   Iterable<T1> bind<T1>(Iterable<T1> Function(T) fn) sync* {
     for (final t in this) {
       yield* fn(t);
+    }
+  }
+
+  Iterable<Tuple2<T, T1>> zip<T1>(Iterable<T1> other) sync* {
+    final ia = iterator, ib = other.iterator;
+    while (ia.moveNext() && ib.moveNext()) {
+      yield Tuple2(ia.current, ib.current);
     }
   }
 }
@@ -112,6 +120,7 @@ class TemplateGenerator extends Generator {
   };
   static final templateChecker = TypeChecker.fromRuntime(Template);
   static final unionChecker = TypeChecker.fromRuntime(Union);
+  static final hiveTypeChecker = TypeChecker.fromRuntime(HiveType);
 
   Map<Element, ConstantReader> _annotated(LibraryReader library) => checkers //
       .bind((e) => library.annotatedWithExact(e))
@@ -148,9 +157,39 @@ class TemplateGenerator extends Generator {
     final notNamedCorrectly = annotated.keys
         .whereType<ClassElement>()
         .where((element) => !element.name.startsWith(mangledPrefix));
-    if (notClasses.isNotEmpty || notNamedCorrectly.isNotEmpty) {
-      throw StateError('');
+    final withHiveType = annotated.keys.where(hiveTypeChecker.hasAnnotationOf);
+    if (notClasses.isEmpty &&
+        notNamedCorrectly.isEmpty &&
+        withHiveType.isEmpty) {
+      return;
     }
+    final result = StringBuffer();
+    if (notClasses.isNotEmpty) {
+      result.writeAll(
+          notClasses
+              .map((e) => e.name) //
+              .map((e) =>
+                  '$e is annotated with Template or Union but it is not an class.'),
+          '\n');
+    }
+    if (notNamedCorrectly.isNotEmpty) {
+      result.writeAll(
+          notNamedCorrectly
+              .map((e) => e.name) //
+              .map((e) =>
+                  'classes annotated with Template or Union must start with $mangledPrefix, but $e is not.'),
+          '\n');
+    }
+    if (withHiveType.isNotEmpty) {
+      result.writeAll(
+          withHiveType
+              .map((e) => e.name) //
+              .map((e) =>
+                  '$e is annotated with HiveType, but this is forbidden! Use Template(hiveType: number)'),
+          '\n');
+    }
+
+    throw StateError(result.toString());
   }
 
   @override
@@ -176,6 +215,16 @@ class TemplateGenerator extends Generator {
       assert(value.length == value.trim().length);
       values.add(value);
     }
+    await for (var value in normalizeGeneratorOutput(generateHiveTypeStatement(
+        annotated.entries
+            .where((e) => e.value.instanceOf(templateChecker))
+            .where((el) => el.value.read("hiveType") != null)
+            .where((el) => !el.value.read("hiveType").isNull)
+            .map((e) => e.key)
+            .toList()))) {
+      assert(value.length == value.trim().length);
+      values.add(value);
+    }
     for (var e in annotated.entries) {
       var generatedValue;
       if (e.value.instanceOf(unionChecker)) {
@@ -183,7 +232,6 @@ class TemplateGenerator extends Generator {
           e.key,
           e.value,
           buildStep,
-          unionWith: unitedTypes.unitedToUnion[e.key],
           unitedWith: unitedTypes.unionToUnited[e.key],
         );
       } else {
@@ -205,13 +253,36 @@ class TemplateGenerator extends Generator {
     return values.join('\n\n');
   }
 
-  String _visitSignature(Set<Element> unitedWith) {
+  String _unionMemberClassFactory(Element union, Element unionMember) {
+    final memberName = demangled(unionMember.name);
+    final builderName = '${memberName}Builder';
+    final abbrMember = _unionMemberAbbreviatedName(union, unionMember);
+    return '''
+    /// Create an instance of an [$memberName] with the [updates] applied to to
+    /// the [$builderName].
+    static $memberName $abbrMember([void Function($builderName) updates]) => $memberName(updates);
+    ''';
+  }
+
+  String _unionMemberAbbreviatedName(Element union, Element unionMember) {
+    final unionName = demangled(union.name);
+    var name = demangled(unionMember.name);
+    name = name.replaceFirst(unionName, '');
+    name = camelCase(name);
+    return name;
+  }
+
+  String _visitSignature(Element union, Set<Element> unitedWith) {
     final required = '@required';
-    final unitedNames =
+    final unitedClassNames =
         unitedWith.whereType<ClassElement>().map((e) => demangled(e.name));
+    final unitedPosArgNames = unitedWith
+        .whereType<ClassElement>()
+        .map((klass) => _unionMemberAbbreviatedName(union, klass));
+    final united = unitedClassNames.zip(unitedPosArgNames);
     return '''
   T visit<T>({
-        ${unitedNames.map((n) => '$required T Function($n) ${camelCase(n)},').join('\n')}
+        ${united.map((tp) => '$required T Function(${tp.item1}) ${tp.item2},').join('\n')}
       })''';
   }
 
@@ -222,27 +293,50 @@ class TemplateGenerator extends Generator {
 ];''';
   }
 
+  FutureOr<String> generateHiveTypeStatement(List<Element> hiveTypeClasses) {
+    if (hiveTypeClasses == null || hiveTypeClasses.isEmpty) {
+      return null;
+    }
+    final statements = hiveTypeClasses
+        .map((e) => demangled(e.name))
+        .map((clsName) => 'registerAdapter<$clsName>(${clsName}Adapter())');
+    final nullSuffix = '/*?*/';
+    return '''void _\$registerHiveTypes([HiveInterface$nullSuffix hive]) {
+      hive ??= Hive;
+      hive..
+      ${statements.join('\n..')};
+    }''';
+  }
+
+  String _hiveTypeAnnotation(ConstantReader templateAnnotation) {
+    final hiveType = templateAnnotation.read('hiveType');
+    if (hiveType == null || hiveType.isNull || hiveType.intValue == null) {
+      return '';
+    }
+    final id = hiveType.intValue;
+    return '@HiveType(typeId: $id)';
+  }
+
   Future<String> generateUnionElement(
     Element unionElement,
     ConstantReader unionAnnotation,
     BuildStep buildStep, {
-    Element unionWith,
     Set<Element> unitedWith,
   }) async {
     final cls = unionElement as ClassElement;
     final name = demangled(cls.name);
     final builderName = '${name}Builder';
     final classModifiers = ClassModifiers.fromElement(cls);
-    final isSubUnion = unionWith != null;
-    if (isSubUnion) {
-      classModifiers.implement.add(demangled(unionWith.name));
-    }
+    final memberFactories =
+        unitedWith.map((member) => _unionMemberClassFactory(cls, member));
 
     return '''
     @BuiltValue(instantiable: false)
     ${_bypassedAnnotationsFor(cls).join('\n')}
     ${cls.documentationComment ?? ''}
     abstract class $name$classModifiers {
+      ${memberFactories.join('\n')}
+
       $_kBuiltToBuilderComment
       $builderName toBuilder();
 
@@ -251,7 +345,7 @@ class TemplateGenerator extends Generator {
 
       /// Visit every member of the union [$name]. Prefer this over explicit
       /// `as` checks because it is exaustive, therefore safer.
-      ${_visitSignature(unitedWith)};
+      ${_visitSignature(unionElement, unitedWith)};
 
       /// Serialize an [$name] to an json object.
       Map<String, dynamic> toJson();
@@ -284,11 +378,16 @@ class TemplateGenerator extends Generator {
     return methodBodies.join('\n');
   }
 
-  Iterable<String> _bypassedAnnotationsFor(Element e) => e.metadata
-      .where((e) => !checkers.any(
-            (c) => c.isExactlyType(e.computeConstantValue()?.type),
-          ))
-      .map((e) => e.toSource());
+  Iterable<String> _bypassedAnnotationsFor(Element e) {
+    final disallowedAnnotations = checkers.followedBy([
+      hiveTypeChecker,
+    ]);
+    return e.metadata
+        .where((e) => !disallowedAnnotations.any(
+              (c) => c.isExactlyType(e.computeConstantValue()?.type),
+            ))
+        .map((e) => e.toSource());
+  }
 
   // The concrete getter declarations from [element]
   String gettersFrom(Element element) {
@@ -390,6 +489,7 @@ class TemplateGenerator extends Generator {
 
     return '''
     ${_bypassedAnnotationsFor(cls).join('\n')}
+    ${_hiveTypeAnnotation(templateAnnotation)}
     ${cls.documentationComment ?? ''}
     abstract class $name$classModifiers {
       $constructor
@@ -398,7 +498,7 @@ class TemplateGenerator extends Generator {
       /// [$builderName].
       factory $name([void Function($builderType) updates]) => _\$$name$typeParameters((b)=>b..update(updates));
 
-      ${isUnion ? '@override ${_visitSignature(unitedWith)} => ${camelCase(name)}(this);' : ''}
+      ${isUnion ? '@override ${_visitSignature(unionWith, unitedWith)} => ${_unionMemberAbbreviatedName(unionWith, cls)}(this);' : ''}
 
       ${isUnion ? '@override' : '/// Serialize an [$name] to an json object.'}
       Map<String, dynamic> toJson() =>

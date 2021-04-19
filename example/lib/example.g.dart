@@ -11,13 +11,17 @@ Serializers _$serializers = (new Serializers().toBuilder()
       ..add(B.serializer)
       ..add(Bar.serializer)
       ..add(C.serializer)
-      ..add(Foo.serializer))
+      ..add(Foo.serializer)
+      ..add(StateA.serializer)
+      ..add(StateB.serializer))
     .build();
 Serializer<Foo> _$fooSerializer = new _$FooSerializer();
 Serializer<Bar> _$barSerializer = new _$BarSerializer();
 Serializer<A> _$aSerializer = new _$ASerializer();
 Serializer<B> _$bSerializer = new _$BSerializer();
 Serializer<C<Object>> _$cSerializer = new _$CSerializer();
+Serializer<StateA> _$stateASerializer = new _$StateASerializer();
+Serializer<StateB> _$stateBSerializer = new _$StateBSerializer();
 
 class _$FooSerializer implements StructuredSerializer<Foo> {
   @override
@@ -225,6 +229,84 @@ class _$CSerializer implements StructuredSerializer<C<Object>> {
           break;
         case 't':
           result.t = serializers.deserialize(value, specifiedType: parameterT);
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$StateASerializer implements StructuredSerializer<StateA> {
+  @override
+  final Iterable<Type> types = const [StateA, _$StateA];
+  @override
+  final String wireName = 'StateA';
+
+  @override
+  Iterable<Object> serialize(Serializers serializers, StateA object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object>[
+      'b',
+      serializers.serialize(object.b, specifiedType: const FullType(int)),
+    ];
+
+    return result;
+  }
+
+  @override
+  StateA deserialize(Serializers serializers, Iterable<Object> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = new StateABuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current as String;
+      iterator.moveNext();
+      final Object value = iterator.current;
+      switch (key) {
+        case 'b':
+          result.b = serializers.deserialize(value,
+              specifiedType: const FullType(int)) as int;
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$StateBSerializer implements StructuredSerializer<StateB> {
+  @override
+  final Iterable<Type> types = const [StateB, _$StateB];
+  @override
+  final String wireName = 'StateB';
+
+  @override
+  Iterable<Object> serialize(Serializers serializers, StateB object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object>[
+      'b',
+      serializers.serialize(object.b, specifiedType: const FullType(int)),
+    ];
+
+    return result;
+  }
+
+  @override
+  StateB deserialize(Serializers serializers, Iterable<Object> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = new StateBBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current as String;
+      iterator.moveNext();
+      final Object value = iterator.current;
+      switch (key) {
+        case 'b':
+          result.b = serializers.deserialize(value,
+              specifiedType: const FullType(int)) as int;
           break;
       }
     }
@@ -612,9 +694,196 @@ class CBuilder<T> implements Builder<C<T>, CBuilder<T>>, ABCBuilder {
   }
 }
 
+class _$StateA extends StateA {
+  @override
+  final int b;
+
+  factory _$StateA([void Function(StateABuilder) updates]) =>
+      (new StateABuilder()..update(updates)).build();
+
+  _$StateA._({this.b}) : super._() {
+    BuiltValueNullFieldError.checkNotNull(b, 'StateA', 'b');
+  }
+
+  @override
+  StateA rebuild(void Function(StateABuilder) updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  StateABuilder toBuilder() => new StateABuilder()..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is StateA && b == other.b;
+  }
+
+  @override
+  int get hashCode {
+    return $jf($jc(0, b.hashCode));
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper('StateA')..add('b', b)).toString();
+  }
+}
+
+class StateABuilder implements Builder<StateA, StateABuilder>, StateBuilder {
+  _$StateA _$v;
+
+  int _b;
+  int get b => _$this._b;
+  set b(covariant int b) => _$this._b = b;
+
+  StateABuilder();
+
+  StateABuilder get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _b = $v.b;
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(covariant StateA other) {
+    ArgumentError.checkNotNull(other, 'other');
+    _$v = other as _$StateA;
+  }
+
+  @override
+  void update(void Function(StateABuilder) updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  _$StateA build() {
+    final _$result = _$v ??
+        new _$StateA._(
+            b: BuiltValueNullFieldError.checkNotNull(b, 'StateA', 'b'));
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$StateB extends StateB {
+  @override
+  final int b;
+
+  factory _$StateB([void Function(StateBBuilder) updates]) =>
+      (new StateBBuilder()..update(updates)).build();
+
+  _$StateB._({this.b}) : super._() {
+    BuiltValueNullFieldError.checkNotNull(b, 'StateB', 'b');
+  }
+
+  @override
+  StateB rebuild(void Function(StateBBuilder) updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  StateBBuilder toBuilder() => new StateBBuilder()..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is StateB && b == other.b;
+  }
+
+  @override
+  int get hashCode {
+    return $jf($jc(0, b.hashCode));
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper('StateB')..add('b', b)).toString();
+  }
+}
+
+class StateBBuilder implements Builder<StateB, StateBBuilder>, StateBuilder {
+  _$StateB _$v;
+
+  int _b;
+  int get b => _$this._b;
+  set b(covariant int b) => _$this._b = b;
+
+  StateBBuilder();
+
+  StateBBuilder get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _b = $v.b;
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(covariant StateB other) {
+    ArgumentError.checkNotNull(other, 'other');
+    _$v = other as _$StateB;
+  }
+
+  @override
+  void update(void Function(StateBBuilder) updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  _$StateB build() {
+    final _$result = _$v ??
+        new _$StateB._(
+            b: BuiltValueNullFieldError.checkNotNull(b, 'StateB', 'b'));
+    replace(_$result);
+    return _$result;
+  }
+}
+
 abstract class ABCBuilder {
   void replace(ABC other);
   void update(void Function(ABCBuilder) updates);
 }
 
+abstract class StateBuilder {
+  void replace(State other);
+  void update(void Function(StateBuilder) updates);
+}
+
 // ignore_for_file: always_put_control_body_on_new_line,always_specify_types,annotate_overrides,avoid_annotating_with_dynamic,avoid_as,avoid_catches_without_on_clauses,avoid_returning_this,lines_longer_than_80_chars,omit_local_variable_types,prefer_expression_function_bodies,sort_constructors_first,test_types_in_equals,unnecessary_const,unnecessary_new
+
+// **************************************************************************
+// TypeAdapterGenerator
+// **************************************************************************
+
+class CAdapter extends TypeAdapter<C> {
+  @override
+  final int typeId = 10;
+
+  @override
+  C read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+
+    return (CBuilder()).build();
+  }
+
+  @override
+  void write(BinaryWriter writer, C obj) {
+    writer..writeByte(0);
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
