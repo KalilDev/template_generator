@@ -1,3 +1,9 @@
+# 1.2.0
+- Add support for generating `Constructor` code.
+
+# 1.1.1
+- Improve handling of generic types
+
 ## 1.1.0
 - Support the code generation for the `hiveType` optional on the `Template` annotation
 - Remove the union name from the `visit` positional argument names

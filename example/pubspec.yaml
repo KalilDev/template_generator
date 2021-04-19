@@ -7,7 +7,7 @@ environment:
   sdk: '>=2.8.1 <3.0.0'
 
 dependencies:
-  template_annotation: ^1.1.0
+  template_annotation: ^1.2.0
 
 dev_dependencies:
   template_generator:

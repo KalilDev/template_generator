@@ -72,7 +72,19 @@ abstract class __StateA {
 @template
 abstract class __StateB {
   int get b;
+  List<int> get ints;
+
+  static final index = 0;
+  @constructor
+  static _ctor(int b, [void Function(StateBBuilder) updates, String a]) =>
+      (StateBBuilder bdr) => bdr..update(updates);
+  @Constructor('two')
+  static _ctorTwo(String name) =>
+      (StateBBuilder bdr) => bdr..b = int.parse(name);
 }
 
 @Union({__StateA, __StateB})
-abstract class __State {}
+abstract class __State {
+  static final stateIndex = 1;
+  static void init() {}
+}

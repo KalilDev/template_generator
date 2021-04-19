@@ -288,6 +288,9 @@ class _$StateBSerializer implements StructuredSerializer<StateB> {
     final result = <Object>[
       'b',
       serializers.serialize(object.b, specifiedType: const FullType(int)),
+      'ints',
+      serializers.serialize(object.ints,
+          specifiedType: const FullType(List, const [const FullType(int)])),
     ];
 
     return result;
@@ -307,6 +310,12 @@ class _$StateBSerializer implements StructuredSerializer<StateB> {
         case 'b':
           result.b = serializers.deserialize(value,
               specifiedType: const FullType(int)) as int;
+          break;
+        case 'ints':
+          result.ints = serializers.deserialize(value,
+                  specifiedType:
+                      const FullType(List, const [const FullType(int)]))
+              as List<int>;
           break;
       }
     }
@@ -771,12 +780,15 @@ class StateABuilder implements Builder<StateA, StateABuilder>, StateBuilder {
 class _$StateB extends StateB {
   @override
   final int b;
+  @override
+  final List<int> ints;
 
   factory _$StateB([void Function(StateBBuilder) updates]) =>
       (new StateBBuilder()..update(updates)).build();
 
-  _$StateB._({this.b}) : super._() {
+  _$StateB._({this.b, this.ints}) : super._() {
     BuiltValueNullFieldError.checkNotNull(b, 'StateB', 'b');
+    BuiltValueNullFieldError.checkNotNull(ints, 'StateB', 'ints');
   }
 
   @override
@@ -789,17 +801,20 @@ class _$StateB extends StateB {
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is StateB && b == other.b;
+    return other is StateB && b == other.b && ints == other.ints;
   }
 
   @override
   int get hashCode {
-    return $jf($jc(0, b.hashCode));
+    return $jf($jc($jc(0, b.hashCode), ints.hashCode));
   }
 
   @override
   String toString() {
-    return (newBuiltValueToStringHelper('StateB')..add('b', b)).toString();
+    return (newBuiltValueToStringHelper('StateB')
+          ..add('b', b)
+          ..add('ints', ints))
+        .toString();
   }
 }
 
@@ -810,12 +825,17 @@ class StateBBuilder implements Builder<StateB, StateBBuilder>, StateBuilder {
   int get b => _$this._b;
   set b(covariant int b) => _$this._b = b;
 
+  List<int> _ints;
+  List<int> get ints => _$this._ints;
+  set ints(covariant List<int> ints) => _$this._ints = ints;
+
   StateBBuilder();
 
   StateBBuilder get _$this {
     final $v = _$v;
     if ($v != null) {
       _b = $v.b;
+      _ints = $v.ints;
       _$v = null;
     }
     return this;
@@ -836,7 +856,9 @@ class StateBBuilder implements Builder<StateB, StateBBuilder>, StateBuilder {
   _$StateB build() {
     final _$result = _$v ??
         new _$StateB._(
-            b: BuiltValueNullFieldError.checkNotNull(b, 'StateB', 'b'));
+            b: BuiltValueNullFieldError.checkNotNull(b, 'StateB', 'b'),
+            ints:
+                BuiltValueNullFieldError.checkNotNull(ints, 'StateB', 'ints'));
     replace(_$result);
     return _$result;
   }

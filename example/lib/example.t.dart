@@ -208,10 +208,25 @@ abstract class StateA implements State, Built<StateA, StateABuilder> {
 abstract class StateB implements State, Built<StateB, StateBBuilder> {
   StateB._();
 
-  /// Construct an [StateB] from the updates applied to an
-  /// [StateBBuilder].
-  factory StateB([void Function(StateBBuilder) updates]) =>
-      _$StateB((b) => b..update(updates));
+  factory StateB(
+    int b, [
+    void Function(StateBBuilder) updates,
+    String a,
+  ]) =>
+      _$StateB((__builder) => __builder
+        ..update(_ctor(
+          b,
+          updates,
+          a,
+        )));
+
+  factory StateB.two(
+    String name,
+  ) =>
+      _$StateB((__builder) => __builder
+        ..update(_ctorTwo(
+          name,
+        )));
 
   @override
   T visit<T>({
@@ -232,6 +247,16 @@ abstract class StateB implements State, Built<StateB, StateBBuilder> {
   static Serializer<StateB> get serializer => _$stateBSerializer;
 
   int get b;
+
+  List<int> get ints;
+
+  static final index = 0;
+  @constructor
+  static _ctor(int b, [void Function(StateBBuilder) updates, String a]) =>
+      (StateBBuilder bdr) => bdr..update(updates);
+  @Constructor('two')
+  static _ctorTwo(String name) =>
+      (StateBBuilder bdr) => bdr..b = int.parse(name);
 }
 
 @BuiltValue(instantiable: false)
@@ -240,15 +265,18 @@ abstract class StateB implements State, Built<StateB, StateBBuilder> {
 abstract class ABC {
   /// Create an instance of an [A] with the [updates] applied to to
   /// the [ABuilder].
+
   static A a([void Function(ABuilder) updates]) => A(updates);
 
   /// Create an instance of an [B] with the [updates] applied to to
   /// the [BBuilder].
+
   static B b([void Function(BBuilder) updates]) => B(updates);
 
   /// Create an instance of an [C] with the [updates] applied to to
   /// the [CBuilder].
-  static C c([void Function(CBuilder) updates]) => C(updates);
+
+  static C<T> c<T>([void Function(CBuilder) updates]) => C<T>(updates);
 
   /// Rebuilds the instance.
   ///
@@ -286,11 +314,19 @@ abstract class ABC {
 abstract class State {
   /// Create an instance of an [StateA] with the [updates] applied to to
   /// the [StateABuilder].
+
   static StateA a([void Function(StateABuilder) updates]) => StateA(updates);
 
-  /// Create an instance of an [StateB] with the [updates] applied to to
-  /// the [StateBBuilder].
-  static StateB b([void Function(StateBBuilder) updates]) => StateB(updates);
+  static StateB b(
+    int b, [
+    void Function(StateBBuilder) updates,
+    String a,
+  ]) =>
+      StateB(
+        b,
+        updates,
+        a,
+      );
 
   /// Rebuilds the instance.
   ///
@@ -321,4 +357,7 @@ abstract class State {
 
   /// Serialize an [State] to an json object.
   Map<String, dynamic> toJson();
+
+  static final stateIndex = 1;
+  static void init() {}
 }
