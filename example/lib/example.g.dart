@@ -708,7 +708,7 @@ class _$StateA extends StateA {
   final int b;
 
   factory _$StateA([void Function(StateABuilder) updates]) =>
-      (new StateABuilder()..update(updates)).build();
+      (new StateABuilder()..update(updates)).build() as _$StateA;
 
   _$StateA._({this.b}) : super._() {
     BuiltValueNullFieldError.checkNotNull(b, 'StateA', 'b');
@@ -719,7 +719,7 @@ class _$StateA extends StateA {
       (toBuilder()..update(updates)).build();
 
   @override
-  StateABuilder toBuilder() => new StateABuilder()..replace(this);
+  _$StateABuilder toBuilder() => new _$StateABuilder()..replace(this);
 
   @override
   bool operator ==(Object other) {
@@ -738,19 +738,27 @@ class _$StateA extends StateA {
   }
 }
 
-class StateABuilder implements Builder<StateA, StateABuilder>, StateBuilder {
+class _$StateABuilder extends StateABuilder {
   _$StateA _$v;
 
-  int _b;
-  int get b => _$this._b;
-  set b(covariant int b) => _$this._b = b;
+  @override
+  int get b {
+    _$this;
+    return super.b;
+  }
 
-  StateABuilder();
+  @override
+  set b(int b) {
+    _$this;
+    super.b = b;
+  }
+
+  _$StateABuilder() : super._();
 
   StateABuilder get _$this {
     final $v = _$v;
     if ($v != null) {
-      _b = $v.b;
+      super.b = $v.b;
       _$v = null;
     }
     return this;

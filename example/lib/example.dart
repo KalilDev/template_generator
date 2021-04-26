@@ -22,6 +22,8 @@ abstract class __Bar {
 
   int get a2 => a * 2;
   static void init() {}
+  @member
+  static BarBuilder getBuilder(Bar self) => self.toBuilder();
 }
 
 @template
@@ -69,6 +71,11 @@ abstract class __StateA {
   int get b;
 }
 
+@builderTemplate
+abstract class __StateABuilder {
+  int b;
+}
+
 @template
 abstract class __StateB {
   int get b;
@@ -81,6 +88,11 @@ abstract class __StateB {
   @Constructor('two')
   static _ctorTwo(String name) =>
       (StateBBuilder bdr) => bdr..b = int.parse(name);
+  @Constructor('three')
+  static _ctorThree(StateB b) => (StateBBuilder bdr) => bdr.replace(b);
+
+  @member
+  static toA(StateB self) => StateA();
 }
 
 @Union({__StateA, __StateB})

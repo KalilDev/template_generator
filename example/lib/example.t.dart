@@ -65,7 +65,11 @@ abstract class Bar implements Built<Bar, BarBuilder> {
   int get a;
   int get a2 => a * 2;
 
-  static void init() {}
+  static const init = __Bar.init;
+
+  BarBuilder getBuilder() => __Bar.getBuilder(
+        this,
+      );
 }
 
 abstract class A implements ABC, Built<A, ABuilder> {
@@ -179,7 +183,8 @@ abstract class C<T>
 abstract class StateA implements State, Built<StateA, StateABuilder> {
   StateA._();
 
-  /// Construct an [StateA] from the updates applied to an
+  /// Construct an [StateA] from the updates app
+  /// lied to an
   /// [StateABuilder].
   factory StateA([void Function(StateABuilder) updates]) =>
       _$StateA((b) => b..update(updates));
@@ -210,7 +215,10 @@ abstract class StateB implements State, Built<StateB, StateBBuilder> {
 
   factory StateB(
     int b, [
-    void Function(StateBBuilder) updates,
+    void Function(
+      StateBBuilder,
+    )
+        updates,
     String a,
   ]) =>
       _$StateB((__builder) => __builder
@@ -226,6 +234,14 @@ abstract class StateB implements State, Built<StateB, StateBBuilder> {
       _$StateB((__builder) => __builder
         ..update(_ctorTwo(
           name,
+        )));
+
+  factory StateB.three(
+    StateB b,
+  ) =>
+      _$StateB((__builder) => __builder
+        ..update(_ctorThree(
+          b,
         )));
 
   @override
@@ -250,13 +266,17 @@ abstract class StateB implements State, Built<StateB, StateBBuilder> {
 
   List<int> get ints;
 
-  static final index = 0;
-  @constructor
-  static _ctor(int b, [void Function(StateBBuilder) updates, String a]) =>
-      (StateBBuilder bdr) => bdr..update(updates);
-  @Constructor('two')
-  static _ctorTwo(String name) =>
-      (StateBBuilder bdr) => bdr..b = int.parse(name);
+  static int get index => __StateB.index;
+
+  static const _ctor = __StateB._ctor;
+
+  static const _ctorTwo = __StateB._ctorTwo;
+
+  static const _ctorThree = __StateB._ctorThree;
+
+  toA() => __StateB.toA(
+        this,
+      );
 }
 
 @BuiltValue(instantiable: false)
@@ -319,7 +339,10 @@ abstract class State {
 
   static StateB b(
     int b, [
-    void Function(StateBBuilder) updates,
+    void Function(
+      StateBBuilder,
+    )
+        updates,
     String a,
   ]) =>
       StateB(
@@ -358,6 +381,18 @@ abstract class State {
   /// Serialize an [State] to an json object.
   Map<String, dynamic> toJson();
 
-  static final stateIndex = 1;
-  static void init() {}
+  static int get stateIndex => __State.stateIndex;
+
+  static const init = __State.init;
 }
+
+abstract class StateABuilder
+    implements Builder<StateA, StateABuilder>, StateBuilder {
+  StateABuilder._();
+
+  factory StateABuilder() = _$StateABuilder;
+
+  int b;
+}
+
+// ignore_for_file: lines_longer_than_80_chars, sort_unnamed_constructors_first, prefer_constructors_over_static_methods, avoid_single_cascade_in_expression_statements

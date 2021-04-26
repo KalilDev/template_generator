@@ -1,3 +1,10 @@
+# 1.4.0
+- Added `Member` annotation for creating members which need to use `this` with
+  the correct type.
+
+# 1.3.0
+- Added `BuilderTemplate` annotation for creating templates for builder classes.
+
 # 1.2.0
 - Added `Constructor` annotation for using static methods that create an
   `Builder` update function as constructors.

@@ -1,3 +1,17 @@
+# 1.3.3
+- Do not copy the body from static methods and static fields.
+- Alow using templated classes in constructors.
+
+# 1.3.2
+- Fix `Constructor` signature copying
+
+# 1.3.1
+- Use StringBuffer for writing the result
+- Add ignore_for_file for some lints.
+
+# 1.3.0
+- Add support for generating `BuilderTemplate` code.
+
 # 1.2.0
 - Add support for generating `Constructor` code.
 

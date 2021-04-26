@@ -1,5 +1,7 @@
 const template = Template();
 const constructor = Constructor();
+const builderTemplate = BuilderTemplate();
+const member = Member();
 
 class Template {
   const Template({this.hiveType});
@@ -14,4 +16,12 @@ class Union {
 class Constructor {
   const Constructor([this.name = '']);
   final String name;
+}
+
+class BuilderTemplate {
+  const BuilderTemplate();
+}
+
+class Member {
+  const Member();
 }

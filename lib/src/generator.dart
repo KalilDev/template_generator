@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:math';
-
+import 'dart:developer';
 import 'package:analyzer/dart/element/type.dart';
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/source/source_range.dart';
 import 'package:build/build.dart';
 import 'package:build/src/builder/build_step.dart';
@@ -13,6 +13,14 @@ import 'package:template_annotation/template_annotation.dart';
 import 'package:path/path.dart' as p;
 import 'package:source_gen/src/output_helpers.dart';
 import 'package:tuple/tuple.dart';
+
+import 'utils.dart' as util;
+
+Iterable<T> infiniteIterable<T>(T value) sync* {
+  while (true) {
+    yield value;
+  }
+}
 
 extension _IterableE<T> on Iterable<T> {
   Iterable<T1> bind<T1>(Iterable<T1> Function(T) fn) sync* {
@@ -27,6 +35,22 @@ extension _IterableE<T> on Iterable<T> {
       yield Tuple2(ia.current, ib.current);
     }
   }
+}
+
+extension _Unwrap2a<T1, T2, T3> on Iterable<Tuple2<T1, Tuple2<T2, T3>>> {
+  Iterable<Tuple3<T1, T2, T3>> unwrap() =>
+      map((e) => Tuple3(e.item1, e.item2.item1, e.item2.item2));
+}
+
+extension _Unwrap2b<T1, T2, T3> on Iterable<Tuple2<Tuple2<T1, T2>, T3>> {
+  Iterable<Tuple3<T1, T2, T3>> unwrap() =>
+      map((e) => Tuple3(e.item1.item1, e.item1.item2, e.item2));
+}
+
+extension _Unwrap3a<T1, T2, T3, T4>
+    on Iterable<Tuple3<Tuple2<T1, T2>, T3, T4>> {
+  Iterable<Tuple4<T1, T2, T3, T4>> unwrap() =>
+      map((e) => Tuple4(e.item1.item1, e.item1.item2, e.item2, e.item3));
 }
 
 String camelCase(String s) {
@@ -48,6 +72,14 @@ class UnitedTypes {
       unitedToUnion[e] = union;
     }
     unionToUnited[union] = united;
+  }
+
+  Element unionForNamed(String name) {
+    final el = unitedToUnion.keys.singleWhere(
+      (el) => demangled(el.name) == demangled(name),
+      orElse: () => null,
+    );
+    return unitedToUnion[el];
   }
 }
 
@@ -130,11 +162,15 @@ class TemplateGenerator extends Generator {
   final Set<TypeChecker> checkers = {
     templateChecker,
     unionChecker,
+    builderTemplateChecker,
   };
   static final templateChecker = TypeChecker.fromRuntime(Template);
   static final unionChecker = TypeChecker.fromRuntime(Union);
   static final hiveTypeChecker = TypeChecker.fromRuntime(HiveType);
   static final constructorChecker = TypeChecker.fromRuntime(Constructor);
+  static final builderTemplateChecker =
+      TypeChecker.fromRuntime(BuilderTemplate);
+  static final memberChecker = TypeChecker.fromRuntime(Member);
 
   Map<Element, ConstantReader> _annotated(LibraryReader library) => checkers //
       .bind((e) => library.annotatedWithExact(e))
@@ -208,7 +244,15 @@ class TemplateGenerator extends Generator {
 
   @override
   FutureOr<String> generate(LibraryReader library, BuildStep buildStep) async {
-    final values = <String>{};
+    final result = StringBuffer();
+
+    Future<void> write(FutureOr<String> generatorOutput) async {
+      await for (var value in normalizeGeneratorOutput(generatorOutput)) {
+        assert(value.length == value.trim().length);
+        result..write(value)..write('\n\n');
+      }
+    }
+
     final annotated = _annotated(library);
     if (annotated.isEmpty) {
       return null;
@@ -221,24 +265,15 @@ class TemplateGenerator extends Generator {
     _validateAnnotated(annotated);
     final unitedTypes = _unionMap(annotated);
 
-    await for (var value in normalizeGeneratorOutput(
-        generateSerializersStatement(annotated.entries
-            .where((e) => e.value.instanceOf(templateChecker))
-            .map((e) => e.key)
-            .toList()))) {
-      assert(value.length == value.trim().length);
-      values.add(value);
-    }
-    await for (var value in normalizeGeneratorOutput(generateHiveTypeStatement(
-        annotated.entries
-            .where((e) => e.value.instanceOf(templateChecker))
-            .where((el) => el.value.read("hiveType") != null)
-            .where((el) => !el.value.read("hiveType").isNull)
-            .map((e) => e.key)
-            .toList()))) {
-      assert(value.length == value.trim().length);
-      values.add(value);
-    }
+    await write(generateSerializersStatement(annotated.entries
+        .where((e) => e.value.instanceOf(templateChecker))
+        .map((e) => e.key)
+        .toList()));
+    await write(generateHiveTypeStatement(annotated.entries
+        .where((e) => e.value.instanceOf(templateChecker))
+        .where((el) => !el.value.read("hiveType").isNull)
+        .map((e) => e.key)
+        .toList()));
     for (var e in annotated.entries) {
       var generatedValue;
       if (e.value.instanceOf(unionChecker)) {
@@ -248,7 +283,7 @@ class TemplateGenerator extends Generator {
           buildStep,
           unitedWith: unitedTypes.unionToUnited[e.key],
         );
-      } else {
+      } else if (e.value.instanceOf(templateChecker)) {
         generatedValue = generateTemplateElement(
           e.key,
           e.value,
@@ -257,14 +292,26 @@ class TemplateGenerator extends Generator {
           unitedWith:
               unitedTypes.unionToUnited[unitedTypes.unitedToUnion[e.key]],
         );
+      } else if (e.value.instanceOf(builderTemplateChecker)) {
+        generatedValue = generateBuilderTemplateElement(
+            e.key, e.value, buildStep,
+            unionWithClass:
+                unitedTypes.unionForNamed(_nameFromBuilderName(e.key.name)));
       }
-      await for (var value in normalizeGeneratorOutput(generatedValue)) {
-        assert(value.length == value.trim().length);
-        values.add(value);
-      }
+      await write(generatedValue);
     }
 
-    return values.join('\n\n');
+    if (result.isEmpty) {
+      return null;
+    }
+
+    result.writeln('// ignore_for_file: '
+        'lines_longer_than_80_chars, '
+        'sort_unnamed_constructors_first, '
+        'prefer_constructors_over_static_methods, '
+        'avoid_single_cascade_in_expression_statements');
+
+    return result.toString();
   }
 
   String _unionMemberClassFactory(Element union, Element unionMember) {
@@ -276,8 +323,8 @@ class TemplateGenerator extends Generator {
         _defaultConstructorSignatureAndApplicationFor(unionMember);
     return '''
     ${_defaultConstructorDocumentationFor(unionMember)}
-    static $memberName$typeParams $abbrMember$typeParams(${defaultCtor.item1})
-        => $memberName$typeParams(${defaultCtor.item2});
+    static $memberName$typeParams $abbrMember$typeParams${defaultCtor.item1}
+        => $memberName$typeParams${defaultCtor.item2};
     ''';
   }
 
@@ -370,20 +417,72 @@ class TemplateGenerator extends Generator {
 
       ${accessorsFrom(cls)}
       ${staticFieldsFrom(cls)}
-      ${methodsFrom(cls, true, true)}
+      ${staticMethodsFrom(cls)}
+      ${methodsFrom(cls, true)}
     }
     ''';
   }
 
-  String methodsFrom(Element element, bool isUnionClass, bool staticAlso) {
+  String staticMethodsFrom(Element element) {
     if (element == null) {
       return '';
     }
     final cls = element as ClassElement;
-    var methods = cls.methods.whereType<MethodElementImpl>();
-    if (!staticAlso) {
-      methods = methods.where((m) => !m.isStatic);
+    final methods = cls.methods.where((m) => m.isStatic);
+
+    util.FunctionDeclaration _dclFrom(MethodElement e) {
+      final dcl = util.FunctionDeclaration.fromElement(e);
+      if (dcl.parameters.normal.isEmpty) {
+        throw StateError(
+            'Static methods annotated with @Method need to have at least an'
+            ' single positional argument called `self`.');
+      }
+      final firstParam = dcl.parameters.normal.first;
+      if ((firstParam.type as util.ParameterizedType).type !=
+              demangled(cls.name) ||
+          firstParam.name != 'self') {
+        throw StateError(
+            'Static methods annotated with @Method should have the first '
+            'param called self and with the type of the generated class, but on ${cls.name}.${e.name} it isn\'t.\n'
+            'The first param needed to be of type ${demangled(cls.name)} and called `self`, but it was of type ${firstParam.type.toSource()} and called ${firstParam.name}');
+      }
+      dcl.parameters.normal.removeAt(0);
+      return dcl;
     }
+
+    String _toSourceWithThis(util.FunctionParameters params) {
+      params.normal.insert(
+          0,
+          util.PositionalRequiredFunctionParameter(
+            util.QualifiedType.fromName('dynamic'),
+            'this',
+            false,
+            [],
+          ));
+      return params.toApplicationSource();
+    }
+
+    final statics = methods
+        .where((e) => !memberChecker.hasAnnotationOfExact(e))
+        .map((e) => '''
+      ${e.documentationComment ?? ''}
+      static const ${e.name} = ${cls.name}.${e.name};''');
+    final fakeMethods = methods
+        .where(memberChecker.hasAnnotationOfExact)
+        .map((e) => Tuple2(e.documentationComment, _dclFrom(e)))
+        .map((e) => '''
+      ${e.item1 ?? ''}
+      ${e.item2.toSource()} => ${cls.name}.${e.item2.name}${_toSourceWithThis(e.item2.parameters)};''');
+    return statics.followedBy(fakeMethods).join('\n');
+  }
+
+  String methodsFrom(Element element, bool isUnionClass) {
+    if (element == null) {
+      return '';
+    }
+    final cls = element as ClassElement;
+    final methods =
+        cls.methods.whereType<MethodElementImpl>().where((m) => !m.isStatic);
     if (!isUnionClass && methods.where((e) => e.isAbstract).isNotEmpty) {
       final abstractM = methods.where((e) => e.isAbstract).map((e) => e.name);
       throw StateError(
@@ -420,7 +519,9 @@ class TemplateGenerator extends Generator {
       return '';
     }
     final cls = element as ClassElement;
-    if (cls.accessors.any((e) => e.isSetter && !e.isStatic)) {
+    final notBuilderTemplate = !builderTemplateChecker.hasAnnotationOf(element);
+    if (cls.accessors.any((e) => e.isSetter && !e.isStatic) &&
+        notBuilderTemplate) {
       final setterNames = cls.accessors
           .where((e) => e.isSetter && !e.isStatic)
           .map((e) => e.name);
@@ -455,14 +556,14 @@ class TemplateGenerator extends Generator {
     return result.toString();
   }
 
-  String staticFieldsFrom(Element element) {
+  String fieldsFrom(Element element, [bool Function(FieldElement) where]) {
     if (element == null) {
       return '';
     }
+    where ??= (_) => true;
     final cls = element as ClassElement;
     final code = cls.source.contents.data;
-    final staticFields =
-        cls.fields.whereType<FieldElementImpl>().where((e) => e.isStatic);
+    final staticFields = cls.fields.whereType<FieldElementImpl>().where(where);
 
     final staticCode = staticFields
         .where((e) => e.codeOffset != null && e.codeLength != null)
@@ -474,6 +575,51 @@ class TemplateGenerator extends Generator {
         .map((statement) => '$statement;');
 
     return staticCode.join('\n');
+  }
+
+  String staticFieldsFrom(Element element) {
+    if (element == null) {
+      return '';
+    }
+    final cls = element as ClassElement;
+    final clsFields = cls.fields.where((m) => m.isStatic);
+    final declsAndElements = clsFields
+        .cast<FieldElementImpl>()
+        .map((e) => Tuple2(e, e.linkedNode as VariableDeclaration));
+
+    String typeForDcl(FieldElementImpl e, VariableDeclaration dcl) {
+      final dcls = dcl.parent as VariableDeclarationList;
+      final explicitType = dcls.type?.toSource();
+      if (explicitType != null) {
+        return explicitType;
+      }
+
+      final inferredType = '${e.type.element.name}${_typeParamsFor(e.type)}';
+      return inferredType;
+    }
+
+    Iterable<String> docForDcls(VariableDeclarationList dcls) {
+      return dcls.variables
+          .map((e) => e.declaredElement)
+          .map((e) => e.documentationComment);
+    }
+
+    final nameTypeCommentAssignable = declsAndElements.map(
+      (de) => Tuple4(
+          de.item1.name,
+          typeForDcl(de.item1, de.item2),
+          de.item1.documentationComment,
+          !de.item1.isConst && !de.item2.isFinal),
+    );
+
+    return nameTypeCommentAssignable
+        .bind((e) => [
+              '${e.item3 ?? ''}',
+              'static ${e.item2 ?? 'dynamic'} get ${e.item1} => ${cls.name}.${e.item1};',
+              if (e.item4)
+                'static set(${e.item2 ?? 'dynamic'} v) => ${cls.name}.${e.item1} = v;'
+            ])
+        .join('\n');
   }
 
   String _constructor(ClassElement cls) {
@@ -497,31 +643,66 @@ class TemplateGenerator extends Generator {
     String builderName,
     String builderTypeParameters,
   ) {
-    final type = method.type;
+    final decl = util.FunctionParameters.fromElement(method);
+    return Tuple2(decl.toSource(typeArgumentsAlso: false),
+        decl.toApplicationSource(typeArgumentsAlso: false));
+
     final signature = StringBuffer();
     final application = StringBuffer();
 
-    final normal = type.normalParameterNames.zip(type.normalParameterTypes);
-    final optional =
-        type.optionalParameterNames.zip(type.optionalParameterTypes);
-    final named =
-        type.namedParameterTypes.entries.map((e) => Tuple2(e.key, e.value));
+    final parameters = method.parameters
+        .cast<ParameterElementImpl>()
+        .map((e) => e.linkedNode)
+        .cast<FormalParameter>();
 
-    void writeArg(Tuple2<String, DartType> nameAndType, bool isNamed) {
-      final name = nameAndType.item1;
-      final t = nameAndType.item2;
-      if (t.element == null && name == 'updates') {
-        signature
-          ..write('void Function(')
-          ..write(builderName)
-          ..write(builderTypeParameters)
-          ..write(')');
-      } else {
-        signature //
-          ..write(t.element.name)
-          ..write(_typeParamsFor(t));
+    Tuple5<List<String>, String, String, String, bool> extractInfo(
+        FormalParameter p) {
+      final annotations = p?.metadata?.map((e) => e.toSource())?.toList();
+      final defaultV =
+          (p is DefaultFormalParameter) ? p.defaultValue?.toSource() : null;
+      final name = p.identifier.name;
+      final typename = (p is SimpleFormalParameter)
+          ? p.type.toSource()
+          : (p is DefaultFormalParameter)
+              ? (p.parameter as SimpleFormalParameter).type.toSource()
+              : throw StateError('');
+      return Tuple5(
+          annotations, name, typename, defaultV, p.covariantKeyword != null);
+    }
+
+    final normal = parameters.where((e) => e.isRequiredPositional);
+    final optional = parameters.where((e) => e.isOptionalPositional);
+    final optionalNamed =
+        parameters.where((e) => e.isOptionalNamed).zip(infiniteIterable(false));
+    final requiredNamed =
+        parameters.where((e) => e.isRequiredNamed).zip(infiniteIterable(true));
+    final named = optionalNamed.followedBy(requiredNamed);
+
+    final required = '@required';
+
+    void writeArg(
+        Tuple5<List<String>, String, String, String, bool>
+            annNameTypeDefaultCovariant,
+        bool isNamed,
+        bool isRequired) {
+      final annotations = annNameTypeDefaultCovariant.item1;
+      final name = annNameTypeDefaultCovariant.item2;
+      final type = annNameTypeDefaultCovariant.item3;
+      final defaultV = annNameTypeDefaultCovariant.item4;
+      final covariant = annNameTypeDefaultCovariant.item5;
+      signature //
+        ..writeAll(annotations, ' ')
+        ..write(' ')
+        ..write(covariant ? 'covariant ' : '')
+        ..write(demangled(type))
+        ..write(' ')
+        ..write(name)
+        ..write(' ')
+        ..write(defaultV == null ? '' : '= $defaultV')
+        ..write(',');
+      if (isRequired) {
+        application..write(required)..write(' ');
       }
-      signature..write(' ')..write(name)..write(',');
       application.write(name);
       if (isNamed) {
         application..write(': ')..write(name);
@@ -529,17 +710,19 @@ class TemplateGenerator extends Generator {
       application.write(',');
     }
 
-    normal.forEach((a) => writeArg(a, false));
+    normal.map(extractInfo).forEach((a) => writeArg(a, false, false));
 
     if (optional.isNotEmpty) {
       signature.write('[');
-      optional.forEach((a) => writeArg(a, false));
+      optional.map(extractInfo).forEach((a) => writeArg(a, false, false));
       signature.write(']');
     }
 
     if (named.isNotEmpty) {
       signature.write('{');
-      named.forEach((a) => writeArg(a, true));
+      named
+          .map((a) => Tuple2(extractInfo(a.item1), a.item2))
+          .forEach((a) => writeArg(a.item1, true, a.item2));
       signature.write('}');
     }
     return Tuple2(signature.toString(), application.toString());
@@ -576,7 +759,7 @@ class TemplateGenerator extends Generator {
 
     final builderName = '${demangled(template.name)}Builder';
     if (annotated.isEmpty) {
-      return Tuple2('[void Function($builderName) updates]', 'updates');
+      return Tuple2('([void Function($builderName) updates])', '(updates)');
     }
     final ctor = annotated.single;
     return signatureAndApplicationFor(
@@ -599,9 +782,9 @@ class TemplateGenerator extends Generator {
 
     return '''
       ${doc ?? ''}
-      factory $className${ctorName.isEmpty ? '' : '.$ctorName'}($signature) => _\$$className$typeParameters(
+      factory $className${ctorName.isEmpty ? '' : '.$ctorName'}$signature => _\$$className$typeParameters(
         (__builder)=>__builder
-          ..update($methodName$typeParameters($application)));
+          ..update($methodName$typeParameters$application));
       ''';
   }
 
@@ -654,6 +837,42 @@ class TemplateGenerator extends Generator {
         .followedBy(defaultCollection);
   }
 
+  String _nameFromBuilderName(String builderName) =>
+      demangled(builderName.substring(0, builderName.indexOf('Builder')));
+
+  Future<String> generateBuilderTemplateElement(Element templateElement,
+      ConstantReader templateAnnotation, BuildStep buildStep,
+      {Element unionWithClass}) async {
+    final cls = templateElement as ClassElement;
+    final builderName = demangled(cls.name);
+    final name = _nameFromBuilderName(cls.name);
+    final classModifiers = ClassModifiers.fromElement(templateElement);
+    final typeParameters = _typeParamsFor(cls.thisType);
+    final builderType = '$builderName$typeParameters';
+    classModifiers.implement.add('Builder<$name$typeParameters, $builderType>');
+    if (unionWithClass != null) {
+      classModifiers.implement.add('${demangled(unionWithClass.name)}Builder');
+    }
+
+    final constructor = _constructor(cls);
+
+    return '''
+    ${_bypassedAnnotationsFor(cls).join('\n')}
+    ${cls.documentationComment ?? ''}
+    abstract class $builderName$classModifiers {
+      $constructor
+
+      factory $builderName() = _\$$builderName;
+
+      ${accessorsFrom(templateElement)}
+      ${fieldsFrom(templateElement)}
+      ${staticFieldsFrom(templateElement)}
+      ${staticMethodsFrom(templateElement)}
+      ${methodsFrom(templateElement, false)}
+    }
+    ''';
+  }
+
   Future<String> generateTemplateElement(
     Element templateElement,
     ConstantReader templateAnnotation,
@@ -703,8 +922,9 @@ class TemplateGenerator extends Generator {
       static Serializer<$name> get serializer => _\$${camelCase(name)}Serializer;
       ${accessorsFrom(templateElement)}
       ${staticFieldsFrom(templateElement)}
-      ${methodsFrom(templateElement, false, true)}
-      ${methodsFrom(unionWith, false, false)}
+      ${methodsFrom(templateElement, false)}
+      ${staticMethodsFrom(templateElement)}
+      ${methodsFrom(unionWith, false)}
     }
     ''';
   }
@@ -716,6 +936,13 @@ String demangled(String name) {
     return name.substring(mangledPrefix.length);
   }
   return name;
+}
+
+String mangled(String name) {
+  if (name.startsWith(mangledPrefix)) {
+    return name;
+  }
+  return '$mangledPrefix$name';
 }
 
 const _kBuiltRebuildComment = r'''
