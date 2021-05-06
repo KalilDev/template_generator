@@ -16,3 +16,6 @@ dev_dependencies:
   hive_generator: 
   built_value_generator:
 
+dependency_overrides:
+  template_annotation:
+    path: ../template_annotation

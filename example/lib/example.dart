@@ -20,7 +20,8 @@ abstract class __Foo {
 abstract class __Bar {
   int get a;
 
-  int get a2 => a * 2;
+  @getter
+  static int a2(Bar self) => self.a * 2;
   static void init() {}
   @member
   static BarBuilder getBuilder(Bar self) => self.toBuilder();
@@ -51,10 +52,15 @@ abstract class __C<T> implements GenericInterface<T> {
   int get c;
 
   /// c2
-  int get c2 => 2 * c;
+  @member
+  static int c2<T>(C<T> self) => self.c * 2;
 
   /// cstring
-  String cString() => c.toString();
+  @member
+  static String cString<T>(C<T> self) => self.c.toString();
+
+  @member
+  static C doNothing<T>(C<T> self) => C<T>();
 
   /// Generic param
   /// t
@@ -92,7 +98,7 @@ abstract class __StateB {
   static _ctorThree(StateB b) => (StateBBuilder bdr) => bdr.replace(b);
 
   @member
-  static toA(StateB self) => StateA();
+  static StateA toA(StateB self) => StateA();
 }
 
 @Union({__StateA, __StateB})
