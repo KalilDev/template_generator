@@ -16,15 +16,20 @@ abstract class __Foo {
   int get a;
 }
 
+@MixTo(__Bar)
+mixin _bar {
+  int get a;
+  int get a2 => a * 2;
+  static void init() {}
+  BarBuilder getBuilder() => toBuilder();
+  BarBuilder toBuilder();
+}
+
 @template
 abstract class __Bar {
   int get a;
 
-  @getter
-  static int a2(Bar self) => self.a * 2;
   static void init() {}
-  @member
-  static BarBuilder getBuilder(Bar self) => self.toBuilder();
 }
 
 @template
@@ -39,6 +44,19 @@ abstract class __B {
 
 abstract class GenericInterface<T> {}
 
+@MixTo(__C)
+mixin _c<T> {
+  int get c;
+
+  /// c2
+  int c2() => c * 2;
+
+  /// cstring
+  cString() => c.toString();
+
+  C doNothing() => C<T>();
+}
+
 @Template(hiveType: 10)
 
 /// C class
@@ -50,17 +68,6 @@ abstract class __C<T> implements GenericInterface<T> {
 
   /// c
   int get c;
-
-  /// c2
-  @member
-  static int c2<T>(C<T> self) => self.c * 2;
-
-  /// cstring
-  @member
-  static String cString<T>(C<T> self) => self.c.toString();
-
-  @member
-  static C doNothing<T>(C<T> self) => C<T>();
 
   /// Generic param
   /// t
@@ -82,6 +89,11 @@ abstract class __StateABuilder {
   int b;
 }
 
+@MixTo(__StateB)
+mixin _stateB {
+  StateA toA() => StateA();
+}
+
 @template
 abstract class __StateB {
   int get b;
@@ -96,9 +108,6 @@ abstract class __StateB {
       (StateBBuilder bdr) => bdr..b = int.parse(name);
   @Constructor('three')
   static _ctorThree(StateB b) => (StateBBuilder bdr) => bdr.replace(b);
-
-  @member
-  static StateA toA(StateB self) => StateA();
 }
 
 @Union({__StateA, __StateB})

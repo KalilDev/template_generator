@@ -1,6 +1,7 @@
 import 'package:source_gen/source_gen.dart';
 import 'package:template_generator/src/template_class.dart';
 
+import 'class_code_builder.dart';
 import 'utils.dart';
 
 import 'package:analyzer/dart/ast/ast.dart' as ast;
@@ -11,10 +12,9 @@ import 'package:analyzer/src/dart/element/element.dart' as el_impl;
 import 'package:tuple/tuple.dart';
 import 'package:meta/meta.dart';
 
-class UnionClassFactory extends CodeBuilder {
+class UnionClassFactory extends ClassCodeBuilder {
   final List<TemplateClassFactory> memberFactories = [];
   ConstantReader unionAnnotation;
-  el.ClassElement cls;
   Iterable<AcessorDeclaration> get _abstractGetterDeclarations => cls.accessors
       .where((e) => e.isGetter && e.isAbstract)
       .map((e) => AcessorDeclaration.fromElement(e));
@@ -26,17 +26,6 @@ class UnionClassFactory extends CodeBuilder {
     }
     return afix.stringValue;
   }
-
-  bool get destructure {
-    final destructure = unionAnnotation.read('destructure');
-    if (destructure == null || destructure.isNull) {
-      return true;
-    }
-    return destructure.boolValue;
-  }
-
-  String get demangledClassName => demangled(cls.name);
-  String get className => cls.name;
 
   List<Reference> get valueReferences => cls.accessors
       .where((e) => e.isGetter && e.isAbstract)
@@ -204,11 +193,20 @@ class UnionClassFactory extends CodeBuilder {
       functions: [],
       acessors: _acessors,
       fields: _fields,
-    );
+    )..visitTypes(TypeNameDemangler());
   }
+
+  @override
+  void addMixinType(QualifiedType mixin) {
+    mixins.add(mixin);
+    memberFactories.forEach((e) => e.addMixinType(mixin));
+  }
+
+  @override
+  Set<QualifiedType> mixins = {};
 }
 
-class UnionClass extends Code {
+class UnionClass extends ClassCode {
   final String comment;
   final String className;
   final ClassModifiers modifiers;
@@ -258,13 +256,7 @@ class UnionClass extends Code {
           'toJson',
           QualifiedType.mapStringDynamic,
           false));
-
-  @override
-  String toSource() {
-    return '''
-    @BuiltValue(instantiable: false)
-    ${comment ?? ''}
-    abstract class $className${modifiers.toSource()} {
+  String get additionalBody => '''
       ${memberStaticFactories.map((e) => e.toSource()).join('\n')}
 
       $_kBuiltToBuilderComment
@@ -284,17 +276,8 @@ class UnionClass extends Code {
 
       /// Serialize an [$className] to an json object.
       ${toJson().toSource()}
-
-
-      ${functions.map((e) => e.toSource()).join('\n')}
-      ${acessors.map((e) => e.toSource()).join('\n')}
-      ${fields.map((e) => e.toSource()).join('\n')}
-    }
-    ''';
-  }
-
-  @override
-  void visitTypes(TypeVisitor v) => throw UnimplementedError();
+''';
+  Iterable<String> get annotations => ['@BuiltValue(instantiable: false)'];
 }
 
 const _kBuiltRebuildComment = r'''

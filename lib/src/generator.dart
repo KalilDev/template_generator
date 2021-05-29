@@ -13,6 +13,7 @@ import 'package:template_annotation/template_annotation.dart';
 import 'package:path/path.dart' as p;
 import 'package:source_gen/src/output_helpers.dart';
 import 'package:template_generator/src/builder_template_class.dart';
+import 'package:template_generator/src/class_code_builder.dart';
 import 'package:template_generator/src/template_class.dart';
 import 'package:template_generator/src/union_class.dart';
 import 'package:tuple/tuple.dart';
@@ -42,30 +43,17 @@ extension _Unwrap3a<T1, T2, T3, T4>
 }
 
 class TemplateGenerator extends Generator {
-  final Set<TypeChecker> checkers = {
-    templateChecker,
-    unionChecker,
-    builderTemplateChecker,
-  };
-  static final templateChecker = TypeChecker.fromRuntime(Template);
-  static final unionChecker = TypeChecker.fromRuntime(Union);
-  static final hiveTypeChecker = TypeChecker.fromRuntime(HiveType);
-  static final constructorChecker = TypeChecker.fromRuntime(Constructor);
-  static final builderTemplateChecker =
-      TypeChecker.fromRuntime(BuilderTemplate);
-  static final mixToChecker = TypeChecker.fromRuntime(MixTo);
-
   @override
   FutureOr<String> generate(LibraryReader library, BuildStep buildStep) async {
     final unitedToUnion = <ClassElement, UnionClassFactory>{};
     final nameToTemplate = <String, TemplateClassFactory>{};
-    final nameToBuilder = <String, util.CodeBuilder>{};
-    final builders = <util.CodeBuilder>[];
+    final builders = <String, util.CodeBuilder>{};
     // Walking order must be union -> template -> builder template, as this
     // allows an single pass
-    for (final union in library.classes.where(unionChecker.hasAnnotationOf)) {
+    for (final union
+        in library.classes.where(util.unionChecker.hasAnnotationOf)) {
       final annotation = ConstantReader(
-        unionChecker.annotationsOfExact(union).single,
+        util.unionChecker.annotationsOfExact(union).single,
       );
       final uFactory = UnionClassFactory()
         ..cls = union
@@ -80,38 +68,38 @@ class TemplateGenerator extends Generator {
             .zip(infiniteIterable(uFactory))
             .map((e) => MapEntry(e.item1, e.item2)),
       );
-      builders.add(uFactory);
+      builders[uFactory.className] = uFactory;
     }
     for (final template
-        in library.classes.where(templateChecker.hasAnnotationOf)) {
+        in library.classes.where(util.templateChecker.hasAnnotationOf)) {
       final tFactory = TemplateClassFactory()
         ..cls = template
         ..templateAnnotation = ConstantReader(
-          templateChecker.annotationsOfExact(template).single,
+          util.templateChecker.annotationsOfExact(template).single,
         );
       if (unitedToUnion.containsKey(template)) {
         final union = unitedToUnion.remove(template);
         union.addMember(tFactory);
       }
       nameToTemplate[template.name] = tFactory;
-      builders.add(tFactory);
+      builders[tFactory.className] = tFactory;
     }
 
-    for (final builderTemplate in library.classes
-            .where(builderTemplateChecker.hasAnnotationOf)
-            .where((element) => false) // TODO
-        ) {
+    for (final builderTemplate
+        in library.classes.where(util.builderTemplateChecker.hasAnnotationOf)) {
       final bFactory = BuilderTemplateClassFactory()
         ..cls = builderTemplate
         ..builderTemplateAnnotation = ConstantReader(
-          builderTemplateChecker.annotationsOfExact(builderTemplate).single,
+          util.builderTemplateChecker
+              .annotationsOfExact(builderTemplate)
+              .single,
         );
       final templateName = bFactory.templateClassName();
       final template = nameToTemplate.remove(templateName);
       util.verify(template != null,
           'The template class $templateName either has duplicate builder templates or it does not exist');
       template.addBuilder(bFactory);
-      builders.add(bFactory);
+      builders[bFactory.className] = bFactory;
     }
     util.collectFailures(
       unitedToUnion //
@@ -119,7 +107,29 @@ class TemplateGenerator extends Generator {
           .map((e) => 'The member class ${e.key.name} of the union'
               ' ${e.value.cls.name} is not an template'),
     );
-    return builders
+    final possibleMixins = library.element.units.expand((cu) => cu.mixins
+        .cast<ClassElement>()
+        .followedBy(cu.types.where((e) => e.isAbstract)));
+    for (final toBeMixed in possibleMixins) {
+      final types = util.mixToChecker
+          .annotationsOf(toBeMixed)
+          .map((e) => e.getField("type"))
+          .map((e) => e.toTypeValue())
+          .map((e) => e.element.name);
+      util.collectFailures(
+        types.where((t) =>
+            !builders.containsKey(t) || builders[t] is! ClassCodeBuilder),
+        format:
+            "The following types in @MixTo annotations are not templates or "
+            "unions!\n...{}",
+      );
+      types
+          .map((e) => builders[e])
+          .cast<ClassCodeBuilder>()
+          .forEach((bdr) => bdr.addMixin(toBeMixed));
+    }
+
+    return builders.values
         .map((e) => e.build())
         .map((e) => e.toSource())
         .where((e) => e?.isNotEmpty ?? false)
@@ -127,14 +137,14 @@ class TemplateGenerator extends Generator {
           StringBuffer(),
           (buff, source) => buff..write(source),
         )
-        .pipe((buff) => _addSerializersIfNotEmpty(buff, builders))
-        .pipe((buff) => _addHiveTypeIfNotEmpty(buff, builders))
+        .pipe((buff) => _addSerializersIfNotEmpty(buff, builders.values))
+        .pipe((buff) => _addHiveTypeIfNotEmpty(buff, builders.values))
         .pipe(_addIgnoreForFileIfNotEmpty)
         .pipe((e) => e.toString());
   }
 
   StringBuffer _addSerializersIfNotEmpty(
-      StringBuffer buff, List<util.CodeBuilder> builders) {
+      StringBuffer buff, Iterable<util.CodeBuilder> builders) {
     if (buff.isEmpty) {
       return buff;
     }
@@ -152,7 +162,7 @@ class TemplateGenerator extends Generator {
   }
 
   StringBuffer _addHiveTypeIfNotEmpty(
-      StringBuffer buff, List<util.CodeBuilder> builders) {
+      StringBuffer buff, Iterable<util.CodeBuilder> builders) {
     if (buff.isEmpty) {
       return buff;
     }

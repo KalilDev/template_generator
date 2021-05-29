@@ -6,6 +6,7 @@ import 'package:template_annotation/template_annotation.dart';
 import 'package:template_generator/src/builder_template_class.dart';
 import 'package:template_generator/src/union_class.dart';
 
+import 'class_code_builder.dart';
 import 'utils.dart';
 
 import 'package:analyzer/dart/ast/ast.dart' as ast;
@@ -16,10 +17,6 @@ import 'package:analyzer/src/dart/element/element.dart' as el_impl;
 import 'package:tuple/tuple.dart';
 import 'package:meta/meta.dart';
 
-Member _reviveMember(DartObject obj) =>
-    ConstantReader(obj).pipe((rdr) => rdr.instanceOf(getterChecker)
-        ? Getter(rdr.read('memoized').boolValue)
-        : Member());
 T _id<T>(T v) => v;
 
 extension BiFunctorTuple<A, B> on Tuple2<A, B> {
@@ -80,13 +77,10 @@ List<T> handlePartitionedErrors<T>(
 ) =>
     objects.item2.isEmpty ? objects.item1 : throw onErrors(objects.item2);
 
-class TemplateClassFactory extends CodeBuilder {
+class TemplateClassFactory extends ClassCodeBuilder {
   BuilderTemplateClassFactory builderTemplateFactory;
   UnionClassFactory unionFactory;
   ConstantReader templateAnnotation;
-  el.ClassElement cls;
-  String get className => cls.name;
-  String get demangledClassName => cls.name.pipe(demangled);
 
   String get builderClassName =>
       builderTemplateFactory?.demangledClassName ??
@@ -97,8 +91,9 @@ class TemplateClassFactory extends CodeBuilder {
   Iterable<AcessorDeclaration> get _abstractGetterDeclarations => cls.accessors
       .where((e) => e.isGetter && e.isAbstract)
       .map(liftTry)
-      .map((e) => e.fmap((e) => AcessorDeclaration.fromElement(e)))
-      .map((e) => e.fmap((e) => e..visitTypes(TypeNameDemangler())))
+      .map((e) => e
+          .fmap((e) => AcessorDeclaration.fromElement(e))
+          .fmap((e) => e..visitTypes(TypeNameDemangler())))
       .pipe(runTries)
       .pipe((e) => handlePartitionedErrors(
           e,
@@ -112,7 +107,6 @@ class TemplateClassFactory extends CodeBuilder {
   List<Reference> get valueReferences => _abstractGetterDeclarations
       .map((e) => Reference(e.type, e.name))
       .toList();
-  TypeParamList get typeParamList => _modifiers.typeParams;
 
   Iterable<FieldDeclaration> get _concreteFields => cls.fields
       .where((e) => e.isStatic)
@@ -128,20 +122,10 @@ class TemplateClassFactory extends CodeBuilder {
           .map((e) => e.left((e) => e.read("name")))
           .map((e) =>
               Tuple2(e.item1.isString ? e.item1.stringValue : null, e.item2));
-  Iterable<Try<Tuple2<Member, ConcreteFunctionDeclaration>>>
-      get _annotatedWithMember => cls.methods
-          .where((e) => e.isStatic)
-          .where(memberChecker.hasAnnotationOf)
-          .map(liftTry)
-          .map((e) => e.fmap((e) => Tuple2(
-              _reviveMember(memberChecker.annotationsOf(e).single),
-              FunctionDeclaration.fromElement(e)
-                  as ConcreteFunctionDeclaration)));
-  Iterable<ConcreteFunctionDeclaration>
-      get _notAnnotatedWithConstructorOrMember => cls.methods
+  Iterable<ConcreteFunctionDeclaration> get _notAnnotatedWithConstructor =>
+      cls.methods
           .where((e) => e.isStatic)
           .where((e) => !constructorChecker.hasAnnotationOf(e))
-          .where((e) => !memberChecker.hasAnnotationOf(e))
           .map((e) => FunctionDeclaration.fromElement(e))
           .cast();
 
@@ -170,9 +154,10 @@ class TemplateClassFactory extends CodeBuilder {
         ...bypassedAnnotationsFor(cls)
       ];
 
-  bool get _isUnion => unionFactory != null;
-  ClassModifiers get _modifiers {
-    final modifiers = ClassModifiers.fromElement(cls);
+  bool get isUnion => unionFactory != null;
+  @override
+  ClassModifiers get verbatinModifiers {
+    final modifiers = super.verbatinModifiers;
 
     modifiers.implemented.add(ParameterizedType(
         TypeArgumentList([
@@ -182,7 +167,7 @@ class TemplateClassFactory extends CodeBuilder {
               modifiers.typeParams.toArguments(), builderClassName)
         ]),
         'Built'));
-    if (_isUnion) {
+    if (isUnion) {
       modifiers.implemented
           .add(QualifiedType.fromName(unionFactory.demangledClassName));
     }
@@ -247,9 +232,6 @@ class TemplateClassFactory extends CodeBuilder {
     return TypeParamList(container.params.skip(containedLength).toList());
   }
 
-  QualifiedType get selfType => ParameterizedType(
-      _modifiers.typeParams.toArguments(), demangledClassName);
-
   static ConcreteFunctionDeclaration staticMemberFunction(
       ConcreteFunctionDeclaration staticMember,
       String sourceClassName,
@@ -309,7 +291,7 @@ class TemplateClassFactory extends CodeBuilder {
     final named =
         Map.fromEntries(allCataReferences.map((e) => MapEntry(e.name, e.type)));
     return FunctionType(
-      includeSelfTypeParams ? _modifiers.typeParams : TypeParamList.empty(),
+      includeSelfTypeParams ? modifiers.typeParams : TypeParamList.empty(),
       returnTypeParam.toArgument(),
       [],
       [],
@@ -343,45 +325,20 @@ class TemplateClassFactory extends CodeBuilder {
         if (_annotatedWithConstructor
             .every((e) => e.item1 != null && e.item1.isNotEmpty))
           defaultRedirectingFactoryName(
-              _modifiers.typeParams, demangledClassName, builderClassName),
+              modifiers.typeParams, demangledClassName, builderClassName),
         ..._annotatedWithConstructor //
             .map((e) => staticFactoryConstructor(
                 e.item2, e.item1, className, demangledClassName))
       ];
   List<FunctionDeclaration> get _functions => [
-        ..._annotatedWithMember
-            .map((e) => e.fmap((e) => e.l is Getter ? null : e))
-            .map((e) => e.fmap((e) => e?.r))
-            .map((e) => e.fmap((e) => e == null
-                ? null
-                : staticMemberFunction(
-                    e, className, selfType, _modifiers.typeParams)))
-            .pipe(runTries)
-            .pipe(
-                (e) => handlePartitionedErrors(e, (es) => collectFailures(es))),
         _cataFunctionDeclaration(),
       ];
   List<AcessorDeclaration> get _acessors => [
         ..._concreteFields.bind((e) => staticFieldRedirect(e, className)),
         ..._abstractGetterDeclarations,
-        ..._annotatedWithMember
-            .map((e) => e.fmap((e) => e.l is Getter ? e : null))
-            .map((e) => e.fmap((e) => e?.castL<Getter>()))
-            .map((e) => e.fmap((e) => e == null
-                ? null
-                : staticGetterFunction(
-                    e.item2,
-                    e.item1.memoized,
-                    className,
-                    selfType,
-                    _modifiers.typeParams,
-                  )))
-            .pipe(runTries)
-            .pipe(
-                (e) => handlePartitionedErrors(e, (es) => collectFailures(es)))
       ];
   List<FieldDeclaration> get _fields => [
-        ..._notAnnotatedWithConstructorOrMember
+        ..._notAnnotatedWithConstructor
             .map((e) => staticFunctionRedirect(e, className))
       ];
 
@@ -389,7 +346,7 @@ class TemplateClassFactory extends CodeBuilder {
     collectFailures(cls.methods.where((e) => !e.isStatic).map((e) => e.name),
         format:
             "Only static methods are allowed, but the following aren't:\n...{}"
-            '\nIf you want an member method use the @member annotation.',
+            '\nIf you want an member method use an mixin with @MixTo(${thisType.toSource()}).',
         errorFormat: '$className.{}');
     collectFailures(
         cls.accessors
@@ -416,22 +373,30 @@ class TemplateClassFactory extends CodeBuilder {
       annotations: _annotations,
       comment: cls.documentationComment,
       className: demangledClassName,
-      modifiers: _modifiers,
+      modifiers: modifiers,
       constructor: _constructor,
-      builderFactories: _builderFactories,
-      visit: _isUnion
+      factories: _builderFactories,
+      visit: isUnion
           ? ConcreteFunctionDeclaration(unionFactory.visitSignature,
               unionFactory.visitInvokeBodyFor(this))
           : null,
-      visitCata: _isUnion
+      visitCata: isUnion
           ? ConcreteFunctionDeclaration(unionFactory.visitCataSignature,
               unionFactory.visitCataInvokeBodyFor(this))
           : null,
       functions: _functions,
       acessors: _acessors,
       fields: _fields,
-    );
+    )..visitTypes(TypeNameDemangler());
   }
+
+  TypeParamList get typeParamList => modifiers.typeParams;
+
+  @override
+  void addMixinType(QualifiedType mixin) => mixins.add(mixin);
+
+  @override
+  final Set<QualifiedType> mixins = {};
 }
 
 //${functions(templateElement)}
@@ -439,15 +404,15 @@ class TemplateClassFactory extends CodeBuilder {
 //${methodsFrom(templateElement, false)}
 //${staticMethodsFrom(templateElement)}
 //${methodsFrom(unionWith, false)}
-class TemplateClass extends Code {
+class TemplateClass extends ClassCode {
   final List<String> annotations;
   final String comment;
 
   final String className;
   final ClassModifiers modifiers;
 
-  final String constructor;
-  final List<FactoryDeclaration> builderFactories;
+  final List<String> constructors;
+  final List<FactoryDeclaration> factories;
 
   final FunctionDeclaration visit;
   final FunctionDeclaration visitCata;
@@ -461,14 +426,14 @@ class TemplateClass extends Code {
     @required this.comment,
     @required this.className,
     @required this.modifiers,
-    @required this.constructor,
-    @required this.builderFactories,
+    @required String constructor,
+    @required this.factories,
     @required this.visit,
     @required this.visitCata,
     @required this.functions,
     @required this.acessors,
     @required this.fields,
-  });
+  }) : constructors = [constructor];
 
   static ConcreteFunctionDeclaration fromJson(String className) =>
       ConcreteFunctionDeclaration(
@@ -497,16 +462,7 @@ class TemplateClass extends Code {
       FunctionArrowBody(null, '_\$${lowerCamelCase(className)}Serializer'));
 
   bool get isUnion => visit != null;
-  @override
-  String toSource() {
-      return '''
-    ${annotations.join('\n')}
-    ${comment ?? ''}
-    abstract class $className${modifiers.toSource()} {
-      $constructor
-
-      ${builderFactories.map((e) => e.toSource()).join('\n')}
-
+  String get additionalBody => '''
       ${isUnion ? '@override ${visit.toSource()}' : ''}
       ${isUnion ? '@override ${visitCata.toSource()}' : ''}
 
@@ -518,16 +474,5 @@ class TemplateClass extends Code {
 
       /// The [Serializer] that can serialize and deserialize an [$className].
       ${serializer(className).toSource()}
-
-      ${functions.map((e) => e.toSource()).join('\n')}
-      ${acessors.map((e) => e.toSource()).join('\n')}
-      ${fields.map((e) => e.toSource()).join('\n')}
-    }
-    ''';
-  }
-
-  @override
-  void visitTypes(TypeVisitor v) {
-    throw UnimplementedError();
-  }
+      ''';
 }

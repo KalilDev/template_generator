@@ -198,7 +198,7 @@ abstract class State {
   static const init = __State.init;
 }
 
-abstract class Foo implements Built<Foo, FooBuilder>, __Foo {
+abstract class Foo implements Built<Foo, FooBuilder> {
   Foo._();
 
   factory Foo([
@@ -209,7 +209,8 @@ abstract class Foo implements Built<Foo, FooBuilder>, __Foo {
   ]) = _$Foo;
 
   /// Serialize an [Foo] to an json object.
-  Map<String, dynamic> toJson() => serializers.serialize(this);
+  Map<String, dynamic> toJson() =>
+      serializers.serialize(this) as Map<String, dynamic>;
 
   /// Deserialize an [Foo] from an json object.
   static Foo fromJson(
@@ -230,7 +231,7 @@ abstract class Foo implements Built<Foo, FooBuilder>, __Foo {
   int get a;
 }
 
-abstract class Bar implements Built<Bar, BarBuilder>, __Bar {
+abstract class Bar with _bar implements Built<Bar, BarBuilder> {
   Bar._();
 
   factory Bar([
@@ -241,7 +242,8 @@ abstract class Bar implements Built<Bar, BarBuilder>, __Bar {
   ]) = _$Bar;
 
   /// Serialize an [Bar] to an json object.
-  Map<String, dynamic> toJson() => serializers.serialize(this);
+  Map<String, dynamic> toJson() =>
+      serializers.serialize(this) as Map<String, dynamic>;
 
   /// Deserialize an [Bar] from an json object.
   static Bar fromJson(
@@ -252,9 +254,6 @@ abstract class Bar implements Built<Bar, BarBuilder>, __Bar {
   /// The [Serializer] that can serialize and deserialize an [Bar].
   static Serializer<Bar> get serializer => _$barSerializer;
 
-  BarBuilder getBuilder() => __Bar.getBuilder(
-        this,
-      );
   R cata<R>(
     R Function({
       int a,
@@ -263,13 +262,10 @@ abstract class Bar implements Built<Bar, BarBuilder>, __Bar {
   ) =>
       fn(a: this.a);
   int get a;
-  int get a2 => __Bar.a2(
-        this,
-      );
   static const init = __Bar.init;
 }
 
-abstract class A implements Built<A, ABuilder>, ABC, __A {
+abstract class A implements Built<A, ABuilder>, ABC {
   A._();
 
   factory A([
@@ -320,7 +316,8 @@ abstract class A implements Built<A, ABuilder>, ABC, __A {
       a(a: this.a);
 
   @override
-  Map<String, dynamic> toJson() => serializers.serialize(this);
+  Map<String, dynamic> toJson() =>
+      serializers.serialize(this) as Map<String, dynamic>;
 
   /// Deserialize an [A] from an json object.
   static A fromJson(
@@ -341,7 +338,7 @@ abstract class A implements Built<A, ABuilder>, ABC, __A {
   int get a;
 }
 
-abstract class B implements Built<B, BBuilder>, ABC, __B {
+abstract class B implements Built<B, BBuilder>, ABC {
   B._();
 
   factory B([
@@ -392,7 +389,8 @@ abstract class B implements Built<B, BBuilder>, ABC, __B {
       b(b: this.b);
 
   @override
-  Map<String, dynamic> toJson() => serializers.serialize(this);
+  Map<String, dynamic> toJson() =>
+      serializers.serialize(this) as Map<String, dynamic>;
 
   /// Deserialize an [B] from an json object.
   static B fromJson(
@@ -417,7 +415,8 @@ abstract class B implements Built<B, BBuilder>, ABC, __B {
 
 /// C class
 abstract class C<T>
-    implements GenericInterface<T>, Built<C<T>, CBuilder<T>>, ABC, __C<T> {
+    with _c<T>
+    implements GenericInterface<T>, Built<C<T>, CBuilder<T>>, ABC {
   C._() {
     int foo = 1;
     foo++;
@@ -471,7 +470,8 @@ abstract class C<T>
       c<T>(c: this.c, t: this.t);
 
   @override
-  Map<String, dynamic> toJson() => serializers.serialize(this);
+  Map<String, dynamic> toJson() =>
+      serializers.serialize(this) as Map<String, dynamic>;
 
   /// Deserialize an [C] from an json object.
   static C fromJson(
@@ -482,15 +482,6 @@ abstract class C<T>
   /// The [Serializer] that can serialize and deserialize an [C].
   static Serializer<C> get serializer => _$cSerializer;
 
-  int c2() => __C.c2<T>(
-        this,
-      );
-  String cString() => __C.cString<T>(
-        this,
-      );
-  C doNothing() => __C.doNothing<T>(
-        this,
-      );
   R cata<R>(
     R Function({
       int c,
@@ -503,7 +494,7 @@ abstract class C<T>
   T get t;
 }
 
-abstract class StateA implements Built<StateA, StateABuilder>, State, __StateA {
+abstract class StateA implements Built<StateA, StateABuilder>, State {
   StateA._();
 
   factory StateA([
@@ -544,7 +535,8 @@ abstract class StateA implements Built<StateA, StateABuilder>, State, __StateA {
       a(b: this.b);
 
   @override
-  Map<String, dynamic> toJson() => serializers.serialize(this);
+  Map<String, dynamic> toJson() =>
+      serializers.serialize(this) as Map<String, dynamic>;
 
   /// Deserialize an [StateA] from an json object.
   static StateA fromJson(
@@ -565,7 +557,9 @@ abstract class StateA implements Built<StateA, StateABuilder>, State, __StateA {
   int get b;
 }
 
-abstract class StateB implements Built<StateB, StateBBuilder>, State, __StateB {
+abstract class StateB
+    with _stateB
+    implements Built<StateB, StateBBuilder>, State {
   StateB._();
 
   factory StateB(
@@ -628,7 +622,8 @@ abstract class StateB implements Built<StateB, StateBBuilder>, State, __StateB {
       b(b: this.b, ints: this.ints);
 
   @override
-  Map<String, dynamic> toJson() => serializers.serialize(this);
+  Map<String, dynamic> toJson() =>
+      serializers.serialize(this) as Map<String, dynamic>;
 
   /// Deserialize an [StateB] from an json object.
   static StateB fromJson(
@@ -639,9 +634,6 @@ abstract class StateB implements Built<StateB, StateBBuilder>, State, __StateB {
   /// The [Serializer] that can serialize and deserialize an [StateB].
   static Serializer<StateB> get serializer => _$stateBSerializer;
 
-  StateA toA() => __StateB.toA(
-        this,
-      );
   R cata<R>(
     R Function({
       int b,

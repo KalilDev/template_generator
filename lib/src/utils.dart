@@ -20,22 +20,38 @@ extension Pipe<T> on T {
 Never failWith(String message) => throw StateError(message);
 void verify(bool condition, String message) =>
     condition ? null : failWith(message);
+
+void verifyFn(bool condition, String Function() message) =>
+    condition ? null : failWith(message());
+
+Tuple2<bool, String Function()> failureMessageFor(
+  Iterable<Object> errors, {
+  String errorFormat = '{}',
+  String format = 'Fix the following mistakes:\n...{}',
+}) =>
+    Tuple2(
+      errors?.isEmpty ?? false,
+      () => errors
+          .map((e) => e.toString())
+          .map((e) => errorFormat.replaceAll('{}', e))
+          .pipe((es) => StringBuffer()..writeAll(es, '\n'))
+          .pipe((buff) => buff.toString())
+          .pipe((es) => format.replaceAll('...{}', es)),
+    );
+
 void collectFailures(
   Iterable<Object> errors, {
   String errorFormat = '{}',
   String format = 'Fix the following mistakes:\n...{}',
 }) =>
-    errors //
-        .map((e) => e.toString())
-        .where((e) => e?.isNotEmpty ?? false)
-        .pipe((e) => verify(
-            e.isEmpty,
-            e
-                .map((e) => e.toString())
-                .map((e) => errorFormat.replaceAll("{}", e))
-                .pipe((es) => StringBuffer()..writeAll(es, "\n"))
-                .pipe((buff) => buff.toString())
-                .pipe((es) => format.replaceAll('...{}', es))));
+    failureMessageFor(
+      errors,
+      errorFormat: errorFormat,
+      format: format,
+    ).pipe((e) => verifyFn(
+          e.item1,
+          e.item2,
+        ));
 
 abstract class CodeBuilder {
   Code build();
@@ -45,6 +61,36 @@ abstract class TypeVisitor {
   void visitTypeParam(TypeParam p);
   void visitParameterizedType(ParameterizedType p);
   void visitFunctionType(FunctionType p);
+}
+
+String _codeFromElement(el.Element e) => e.isSynthetic
+    ? null
+    : (e as el_impl.ElementImpl).pipe((e) => e.source.contents.data.substring(
+          e.codeOffset,
+          e.codeLength,
+        ));
+mixin _AnnotatedCode {
+  List<String> annotations = [];
+  void annsFromElement(el.Element e) => annotations = e.metadata
+      .cast<el_impl.ElementAnnotationImpl>()
+      .map((e) => e.annotationAst)
+      .map((e) => e.toSource())
+      .toList();
+}
+
+mixin _DocumentatedCode {
+  String documentation;
+  void docFromElement(el.Element e) => documentation = e.documentationComment;
+}
+
+abstract class AnnotatedCode implements Code {
+  List<String> get annotations;
+  set annotations(List<String> v);
+}
+
+abstract class DocumentedCode implements Code {
+  String get documentation;
+  set documentation(String v);
 }
 
 abstract class Code {
@@ -131,13 +177,14 @@ class TypeParamList implements Code {
       TypeArgumentList(params.map((e) => e.toArgument()).toList());
 
   @override
-  void visitTypes(TypeVisitor v) => params.forEach((e) => e?.visitTypes(v));
+  void visitTypes(TypeVisitor v) => params.visitAllWith(v);
 }
 
 class TypeArgumentList implements Code {
   final List<QualifiedType> arguments;
 
   TypeArgumentList(this.arguments);
+  factory TypeArgumentList.empty() => TypeArgumentList([]);
   static final _iterableEquality = IterableEquality<QualifiedType>();
   bool operator ==(other) {
     if (identical(this, other)) {
@@ -160,7 +207,7 @@ class TypeArgumentList implements Code {
   }
 
   @override
-  void visitTypes(TypeVisitor v) => arguments.forEach((e) => e?.visitTypes(v));
+  void visitTypes(TypeVisitor v) => arguments.visitAllWith(v);
 }
 
 class UnresolvableTypeException = Object with Exception;
@@ -424,9 +471,9 @@ class FunctionType implements QualifiedType {
   void visitTypes(TypeVisitor v) {
     v.visitFunctionType(this);
     returnType?.visitTypes(v);
-    positionalParams.forEach((e) => e?.visitTypes(v));
-    optionalPositionalParams.forEach((e) => e?.visitTypes(v));
-    namedParams.values.forEach((e) => e?.visitTypes(v));
+    positionalParams.visitAllWith(v);
+    optionalPositionalParams.visitAllWith(v);
+    namedParams.values.visitAllWith(v);
   }
 }
 
@@ -699,9 +746,9 @@ class FunctionParameters implements Code {
   @override
   void visitTypes(TypeVisitor v) {
     typeParams?.visitTypes(v);
-    normal.forEach((e) => e?.visitTypes(v));
-    optional.forEach((e) => e?.visitTypes(v));
-    named.forEach((e) => e?.visitTypes(v));
+    normal.visitAllWith(v);
+    optional.visitAllWith(v);
+    named.visitAllWith(v);
   }
 }
 
@@ -777,7 +824,9 @@ class FunctionBlockBody implements FunctionBody {
   void visitTypes(TypeVisitor v) => null;
 }
 
-abstract class AcessorDeclaration implements Code {
+abstract class AcessorDeclaration
+    with _AnnotatedCode, _DocumentatedCode
+    implements Code, AnnotatedCode, DocumentedCode {
   QualifiedType get type;
   String get name;
   bool get isStatic;
@@ -790,7 +839,9 @@ abstract class AcessorDeclaration implements Code {
       final acessor = (element as el_impl.PropertyAccessorElementImpl)
           .linkedNode as ast.MethodDeclaration;
       return AcessorDeclaration.fromAst(
-          acessor, QualifiedType.fromDartType(element.returnType));
+          acessor, QualifiedType.fromDartType(element.returnType))
+        ..annsFromElement(element)
+        ..docFromElement(element);
     } on QualifiedTypeError catch (e) {
       throw e
           .withContext('AcessorDeclaration.fromElement(${element.location})');
@@ -849,7 +900,7 @@ class SetterDeclaration extends AcessorDeclaration {
 
   @override
   String toSource() =>
-      '''${isStatic ? 'static ' : ' '} set $name(${argument.toSource()}) ${body?.toSource() ?? ';'}''';
+      '''${documentation ?? ''}\n${annotations.join('\n')}\n${isStatic ? 'static ' : ' '} set $name(${argument.toSource()}) ${body?.toSource() ?? ';'}''';
 
   @override
   void visitTypes(TypeVisitor v) => argument?.visitTypes(v);
@@ -865,18 +916,21 @@ class GetterDeclaration extends AcessorDeclaration {
 
   @override
   String toSource() =>
-      '''${isStatic ? 'static ' : ' '} ${type?.toSource() ?? ""} get $name ${body?.toSource() ?? ';'}''';
+      '''${documentation ?? ''}\n${annotations.join('\n')}\n${isStatic ? 'static ' : ' '} ${type?.toSource() ?? ""} get $name ${body?.toSource() ?? ';'}''';
   @override
   void visitTypes(TypeVisitor v) => type?.visitTypes(v);
 }
 
-abstract class FactoryDeclaration implements Code {
+abstract class FactoryDeclaration
+    implements Code, AnnotatedCode, DocumentedCode {
   FunctionParameters get parameters;
   String get className;
   String get name;
 }
 
-class RedirectingFactoryDeclaration implements FactoryDeclaration {
+class RedirectingFactoryDeclaration
+    with _AnnotatedCode, _DocumentatedCode
+    implements FactoryDeclaration {
   final FunctionParameters parameters;
   final String className;
   final String name;
@@ -895,7 +949,7 @@ class RedirectingFactoryDeclaration implements FactoryDeclaration {
 
   @override
   String toSource() =>
-      '${isConst ? 'const ' : ''}factory $factoryName${parameters.toSource(typeArgumentsAlso: false)} = $targetFactoryName${parameters.typeParams.toSource()};';
+      '${documentation ?? ''}\n${annotations.join('\n')}\n${isConst ? 'const ' : ''}factory $factoryName${parameters.toSource(typeArgumentsAlso: false)} = $targetFactoryName${parameters.typeParams.toSource()};';
 
   @override
   void visitTypes(TypeVisitor v) {
@@ -903,7 +957,9 @@ class RedirectingFactoryDeclaration implements FactoryDeclaration {
   }
 }
 
-class ConcreteFactoryDeclaration implements FactoryDeclaration {
+class ConcreteFactoryDeclaration
+    with _AnnotatedCode, _DocumentatedCode
+    implements FactoryDeclaration {
   final FunctionParameters parameters;
   final String className;
   final String name;
@@ -921,7 +977,7 @@ class ConcreteFactoryDeclaration implements FactoryDeclaration {
 
   @override
   String toSource() =>
-      'factory $factoryName${parameters.toSource(typeArgumentsAlso: false)} ${body.toSource()}';
+      '${documentation ?? ''}\n${annotations.join('\n')}\nfactory $factoryName${parameters.toSource(typeArgumentsAlso: false)} ${body.toSource()}';
 
   @override
   void visitTypes(TypeVisitor v) {
@@ -929,7 +985,8 @@ class ConcreteFactoryDeclaration implements FactoryDeclaration {
   }
 }
 
-abstract class FunctionDeclaration implements Code {
+abstract class FunctionDeclaration
+    implements Code, DocumentedCode, AnnotatedCode {
   FunctionDeclarationPrelude get prelude;
 
   factory FunctionDeclaration.fromElement(el.ExecutableElement element) {
@@ -963,9 +1020,22 @@ class ConcreteFunctionDeclaration implements FunctionDeclaration {
   ConcreteFunctionDeclaration(this.prelude, this.body);
 
   @override
-  String toSource() => '${prelude.toSource()} ${body.toSource()}';
+  String toSource() =>
+      '${documentation ?? ''}\n${annotations.join('\n')}\n${prelude.toSource()} ${body.toSource()}';
   @override
   void visitTypes(TypeVisitor v) => prelude?.visitTypes(v);
+
+  @override
+  List<String> get annotations => prelude.annotations;
+
+  set annotations(List<String> annotations) =>
+      prelude.annotations = annotations;
+
+  @override
+  String get documentation => prelude.documentation;
+
+  set documentation(String documentation) =>
+      prelude.documentation = documentation;
 }
 
 class AbstractFunctionDeclaration implements FunctionDeclaration {
@@ -974,12 +1044,27 @@ class AbstractFunctionDeclaration implements FunctionDeclaration {
   AbstractFunctionDeclaration(this.prelude);
 
   @override
-  String toSource() => '${prelude.toSource()};';
+  String toSource() =>
+      '${documentation ?? ''}\n${annotations.join('\n')}\n${prelude.toSource()};';
   @override
   void visitTypes(TypeVisitor v) => prelude?.visitTypes(v);
+
+  @override
+  List<String> get annotations => prelude.annotations;
+
+  set annotations(List<String> annotations) =>
+      prelude.annotations = annotations;
+
+  @override
+  String get documentation => prelude.documentation;
+
+  set documentation(String documentation) =>
+      prelude.documentation = documentation;
 }
 
-class FunctionDeclarationPrelude implements Code {
+class FunctionDeclarationPrelude
+    with _AnnotatedCode, _DocumentatedCode
+    implements Code {
   final FunctionParameters parameters;
   final String name;
   final QualifiedType returnType;
@@ -1015,7 +1100,9 @@ class FunctionDeclarationPrelude implements Code {
       element.name,
       returnType,
       element.isStatic,
-    );
+    )
+      ..annsFromElement(element)
+      ..docFromElement(element);
   }
   @override
   String toSource({bool typeArgumentsAlso = true}) =>
@@ -1053,12 +1140,14 @@ class ClassModifiers implements Code {
       final mixed = <QualifiedType>[];
       if (typesFromAst) {
         final node = (cls as el_impl.ClassElementImpl).linkedNode
-            as ast.ClassDeclaration;
-        superType = QualifiedType.fromAst(node.extendsClause?.superclass);
+            as ast.ClassOrMixinDeclaration;
         implemented.addAll(node?.implementsClause?.interfaces
                 ?.map((e) => QualifiedType.fromAst(e)) ??
             []);
-        mixed.addAll(node?.withClause?.mixinTypes
+        final maybeClassNode = node is ast.ClassDeclaration ? node : null;
+        superType =
+            QualifiedType.fromAst(maybeClassNode?.extendsClause?.superclass);
+        mixed.addAll(maybeClassNode?.withClause?.mixinTypes
                 ?.map((e) => QualifiedType.fromAst(e)) ??
             []);
       } else {
@@ -1089,12 +1178,14 @@ class ClassModifiers implements Code {
     if (mixed.isNotEmpty) {
       b
         ..write('with ')
-        ..writeAll(mixed.map((e) => e.toSource()), ', ');
+        ..writeAll(mixed.map((e) => e.toSource()), ', ')
+        ..write(' ');
     }
     if (implemented.isNotEmpty) {
       b
         ..write('implements ')
-        ..writeAll(implemented.map((e) => e.toSource()), ', ');
+        ..writeAll(implemented.map((e) => e.toSource()), ', ')
+        ..write(' ');
     }
     return b.toString();
   }
@@ -1103,8 +1194,8 @@ class ClassModifiers implements Code {
   void visitTypes(TypeVisitor v) {
     typeParams?.visitTypes(v);
     superType?.visitTypes(v);
-    implemented.forEach((e) => e?.visitTypes(v));
-    mixed.forEach((e) => e?.visitTypes(v));
+    implemented.visitAllWith(v);
+    mixed.visitAllWith(v);
   }
 }
 
@@ -1114,7 +1205,9 @@ enum FieldAcessModifier {
   Var,
 }
 
-class FieldDeclaration implements Code {
+class FieldDeclaration
+    with _AnnotatedCode, _DocumentatedCode
+    implements Code, AnnotatedCode, DocumentedCode {
   final bool isStatic;
   final FieldAcessModifier modifier;
   final Reference reference;
@@ -1137,7 +1230,9 @@ class FieldDeclaration implements Code {
       var type = QualifiedType.fromAst(field.fields.type);
       type ??= QualifiedType.fromDartType(el.type);
       return FieldDeclaration(isStatic, modifier, Reference(type, element.name),
-          variable.initializer?.toSource());
+          variable.initializer?.toSource())
+        ..annsFromElement(element)
+        ..docFromElement(element);
     } on QualifiedTypeError catch (e) {
       throw e.withContext('FieldDeclaration.fromElement(${el.location})');
     }
@@ -1167,7 +1262,9 @@ class FieldDeclaration implements Code {
         Reference(reference.type, setterParam),
         isStatic,
         reference.name,
-        FunctionArrowBody(null, '${createRef(reference.name)} = $setterParam'));
+        FunctionArrowBody(null, '${createRef(reference.name)} = $setterParam'))
+      ..annotations = annotations.toList()
+      ..documentation = documentation;
     return [
       getter,
       if (!ro) setter,
@@ -1210,15 +1307,14 @@ final Set<TypeChecker> consumedAnnotationCheckers = {
   unionChecker,
   constructorChecker,
   builderTemplateChecker,
-  memberChecker,
+  mixToChecker,
 };
 final templateChecker = TypeChecker.fromRuntime(Template);
 final unionChecker = TypeChecker.fromRuntime(Union);
 final hiveTypeChecker = TypeChecker.fromRuntime(HiveType);
 final constructorChecker = TypeChecker.fromRuntime(Constructor);
 final builderTemplateChecker = TypeChecker.fromRuntime(BuilderTemplate);
-final memberChecker = TypeChecker.fromRuntime(Member);
-final getterChecker = TypeChecker.fromRuntime(Getter);
+final mixToChecker = TypeChecker.fromRuntime(MixTo);
 
 Iterable<String> bypassedAnnotationsFor(el.Element e) {
   final disallowedAnnotations = consumedAnnotationCheckers.followedBy([
@@ -1278,6 +1374,11 @@ class TypeNameDemangler implements TypeVisitor {
   void visitTypeParam(TypeParam p) {}
 }
 
+extension VisitAllCode on Iterable<Code> {
+  void visitAllWith(TypeVisitor visitor) =>
+      forEach((e) => e?.visitTypes(visitor));
+}
+
 extension IterableE<T> on Iterable<T> {
   Iterable<T1> bind<T1>(Iterable<T1> Function(T) fn) sync* {
     for (final t in this) {
@@ -1305,4 +1406,6 @@ FieldDeclaration staticFunctionRedirect(
         true,
         FieldAcessModifier.Const,
         Reference(null, '${staticFunction.prelude.name}'),
-        '$sourceClassName.${staticFunction.prelude.name}');
+        '$sourceClassName.${staticFunction.prelude.name}')
+      ..documentation = staticFunction.documentation
+      ..annotations = staticFunction.annotations.toList();
