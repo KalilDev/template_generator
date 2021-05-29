@@ -1,6 +1,6 @@
 name: template_generator
 description: An code generator for creating built_value classes based on terse templates
-version: 1.4.0
+version: 1.5.0
 # homepage: https://www.example.com
 
 environment:
@@ -11,14 +11,13 @@ dependencies:
   source_gen: '>=0.9.0 <2.0.0'
   analyzer: '>=0.40.0 <2.0.0'
   path: ^1.7.0
-  template_annotation: ^1.4.0
+  template_annotation: ^1.5.0
   hive: '>=1.0.0 <3.0.0'
   tuple: '>=1.0.0 <3.0.0'
+  collection: '>=1.10.0 < 2.0.0'
+  meta: '>=1.0.0 < 2.0.0'
 
 dev_dependencies:
   pedantic: ^1.9.0
   test: ^1.14.4
 
-dependency_overrides:
-  template_annotation:
-    path: template_annotation

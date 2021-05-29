@@ -1,3 +1,6 @@
+# 1.5.0
+- Add `MixTo` annotation
+
 # 1.3.3
 - Do not copy the body from static methods and static fields.
 - Alow using templated classes in constructors.
