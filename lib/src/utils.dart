@@ -1272,8 +1272,9 @@ class FieldDeclaration
   }
 
   @override
-  String toSource() =>
-      '${isStatic ? 'static ' : ''}$modifierString ${reference.toSource()}${defaultValue == null ? '' : ' = $defaultValue'};';
+  String toSource() => '${documentation ?? ''}\n${annotations.join('\n')}\n'
+      '${isStatic ? 'static ' : ''}$modifierString ${reference.toSource()}'
+      '${defaultValue == null ? '' : ' = $defaultValue'};';
 
   @override
   void visitTypes(TypeVisitor v) {

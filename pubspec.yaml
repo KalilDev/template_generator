@@ -1,6 +1,6 @@
 name: template_generator
 description: An code generator for creating built_value classes based on terse templates
-version: 1.5.0
+version: 1.5.3
 # homepage: https://www.example.com
 
 environment:

@@ -194,8 +194,8 @@ class TemplateClassFactory extends ClassCodeBuilder {
               FunctionType(
                   TypeParamList.empty(),
                   QualifiedType.voidType,
-                  [],
                   [ParameterizedType(typeParams.toArguments(), builderName)],
+                  [],
                   {}),
               'updates',
               false,
@@ -212,6 +212,7 @@ class TemplateClassFactory extends ClassCodeBuilder {
       );
   static FactoryDeclaration staticFactoryConstructor(
           ConcreteFunctionDeclaration staticFactory,
+          TypeParamList typeParams,
           String factoryName,
           String sourceClassName,
           String targetClassName) =>
@@ -220,7 +221,7 @@ class TemplateClassFactory extends ClassCodeBuilder {
           targetClassName,
           factoryName,
           FunctionArrowBody(null,
-              '''${generatedFactoryName(targetClassName)}((__builder)=>__builder
+              '''${generatedFactoryName(targetClassName)}${typeParams.toSource()}((__builder)=>__builder
           ..update($sourceClassName.${staticFactory.prelude.name}${staticFactory.prelude.parameters.toApplicationSource()}))'''));
   static TypeParamList _validatingDeletingTypeParams(
       TypeParamList container, TypeParamList contained) {
@@ -328,7 +329,12 @@ class TemplateClassFactory extends ClassCodeBuilder {
               modifiers.typeParams, demangledClassName, builderClassName),
         ..._annotatedWithConstructor //
             .map((e) => staticFactoryConstructor(
-                e.item2, e.item1, className, demangledClassName))
+                  e.item2,
+                  modifiers.typeParams,
+                  e.item1,
+                  className,
+                  demangledClassName,
+                ))
       ];
   List<FunctionDeclaration> get _functions => [
         _cataFunctionDeclaration(),
