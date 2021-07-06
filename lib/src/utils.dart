@@ -17,6 +17,11 @@ extension Pipe<T> on T {
   R pipe<R>(R Function(T) fn) => fn(this);
 }
 
+extension Wait<T> on Iterable<Future<T>> {
+  Future<List<T>> wait() => Future.wait(this);
+}
+
+typedef ASTNodeResolver = Future<ast.AstNode> Function(el.Element);
 Never failWith(String message) => throw StateError(message);
 void verify(bool condition, String message) =>
     condition ? null : failWith(message);
@@ -530,10 +535,13 @@ class PositionalRequiredFunctionParameter implements FunctionParameter {
     this.isCovariant,
     this.annotations,
   );
-  factory PositionalRequiredFunctionParameter.fromElement(el.ParameterElement e,
-      [bool fallbackToAstType = true, bool allowsDynamic = false]) {
+  static Future<PositionalRequiredFunctionParameter> fromElement(
+    el.ParameterElement e, [
+    ASTNodeResolver resolver,
+    bool allowsDynamic = false,
+  ]) async {
     return PositionalRequiredFunctionParameter(
-      _typeForParameterElement(e, fallbackToAstType, allowsDynamic),
+      await _typeForParameterElement(e, resolver, allowsDynamic),
       e.name,
       e.isCovariant,
       e.metadata.map((e) => e.toSource()).toList(),
@@ -571,10 +579,13 @@ class PositionalOptionalFunctionParameter
     this.annotations,
     this.defaultValue,
   );
-  factory PositionalOptionalFunctionParameter.fromElement(el.ParameterElement e,
-      [bool fallbackToAstType = true, bool allowsDynamic = false]) {
+  static Future<PositionalOptionalFunctionParameter> fromElement(
+    el.ParameterElement e, [
+    ASTNodeResolver resolver,
+    bool allowsDynamic = false,
+  ]) async {
     return PositionalOptionalFunctionParameter(
-      _typeForParameterElement(e, fallbackToAstType, allowsDynamic),
+      await _typeForParameterElement(e, resolver, allowsDynamic),
       e.name,
       e.isCovariant,
       e.metadata.map((e) => e.toSource()).toList(),
@@ -601,16 +612,18 @@ class PositionalOptionalFunctionParameter
   void visitTypes(TypeVisitor v) => type?.visitTypes(v);
 }
 
-QualifiedType _typeForParameterElement(
-    el.ParameterElement e, bool fallbackToAstType, bool allowsDynamic) {
+Future<QualifiedType> _typeForParameterElement(
+  el.ParameterElement el,
+  ASTNodeResolver resolver,
+  bool allowsDynamic,
+) async {
   QualifiedType type;
-  if (fallbackToAstType) {
-    final el = e as el_impl.ParameterElementImpl;
-    final node = el.linkedNode as ast.FormalParameter;
+  if (resolver != null) {
+    final node = await resolver(el) as ast.FormalParameter;
 
     type = node == null ? null : QualifiedType.fromAstFormalParameter(node);
   }
-  type ??= QualifiedType.fromDartType(e.type, allowsDynamic);
+  type ??= QualifiedType.fromDartType(el.type, allowsDynamic);
   return type;
 }
 
@@ -631,10 +644,13 @@ class NamedFunctionParameter implements FunctionParameterWithDefault {
     this.required,
   );
 
-  factory NamedFunctionParameter.fromElement(el.ParameterElement e,
-      [bool fallbackToAstType = true, bool allowsDynamic = false]) {
+  static Future<NamedFunctionParameter> fromElement(
+    el.ParameterElement e, [
+    ASTNodeResolver resolver,
+    bool allowsDynamic = false,
+  ]) async {
     return NamedFunctionParameter(
-      _typeForParameterElement(e, fallbackToAstType, allowsDynamic),
+      await _typeForParameterElement(e, resolver, allowsDynamic),
       e.name,
       e.isCovariant,
       e.metadata.map((e) => e.toSource()).toList(),
@@ -678,7 +694,8 @@ class FunctionParameters implements Code {
   );
   factory FunctionParameters.empty() =>
       FunctionParameters(TypeParamList([]), [], [], []);
-  factory FunctionParameters.fromElement(el.ExecutableElement element) {
+  static Future<FunctionParameters> fromElement(
+      el.ExecutableElement element, ASTNodeResolver resolver) async {
     /// [element] is an [el.FunctionElement], [el.PropertyAccessorElement], or
     /// [el.MethodElement].
     try {
@@ -686,23 +703,26 @@ class FunctionParameters implements Code {
         TypeParamList(element.typeParameters
             .map((e) => TypeParam.fromElement(e))
             .toList()),
-        element.parameters
+        await element.parameters
             .where((e) => e.isRequiredPositional)
-            .map((e) => PositionalRequiredFunctionParameter.fromElement(e))
-            .toList(),
-        element.parameters
+            .map((e) => PositionalRequiredFunctionParameter.fromElement(
+                e, resolver, true))
+            .wait(),
+        await element.parameters
             .where((e) => e.isOptionalPositional)
-            .map((e) => PositionalOptionalFunctionParameter.fromElement(e))
-            .toList(),
-        element.parameters
+            .map((e) => PositionalOptionalFunctionParameter.fromElement(
+                e, resolver, true))
+            .wait(),
+        await element.parameters
             .where((e) => e.isNamed)
-            .map((e) => NamedFunctionParameter.fromElement(e))
-            .toList(),
+            .map((e) => NamedFunctionParameter.fromElement(e, resolver, true))
+            .wait(),
       );
     } on QualifiedTypeError catch (e) {
       throw e.withContext('FunctionParameter.fromElement(${element.location})');
     }
   }
+
   String toApplicationSource({bool typeArgumentsAlso = true}) {
     final r = StringBuffer();
     r
@@ -834,10 +854,12 @@ abstract class AcessorDeclaration
   bool get isAbstract => body == null;
   AcessorDeclaration();
 
-  factory AcessorDeclaration.fromElement(el.PropertyAccessorElement element) {
+  static Future<AcessorDeclaration> fromElement(
+    el.PropertyAccessorElement element,
+    ASTNodeResolver resolver,
+  ) async {
     try {
-      final acessor = (element as el_impl.PropertyAccessorElementImpl)
-          .linkedNode as ast.MethodDeclaration;
+      final acessor = await resolver(element) as ast.MethodDeclaration;
       return AcessorDeclaration.fromAst(
           acessor, QualifiedType.fromDartType(element.returnType))
         ..annsFromElement(element)
@@ -847,6 +869,7 @@ abstract class AcessorDeclaration
           .withContext('AcessorDeclaration.fromElement(${element.location})');
     }
   }
+
   factory AcessorDeclaration.fromAst(ast.MethodDeclaration acessor,
       [QualifiedType fallbackType]) {
     if (acessor.isSynthetic) {
@@ -989,18 +1012,28 @@ abstract class FunctionDeclaration
     implements Code, DocumentedCode, AnnotatedCode {
   FunctionDeclarationPrelude get prelude;
 
-  factory FunctionDeclaration.fromElement(el.ExecutableElement element) {
+  static Future<FunctionDeclaration> fromElement(
+    el.ExecutableElement element,
+    ASTNodeResolver resolver,
+  ) async {
     try {
-      final prelude = FunctionDeclarationPrelude.fromElement(element);
+      final n = await resolver(element);
+      print(n.toSource());
+      final prelude =
+          await FunctionDeclarationPrelude.fromElement(element, resolver);
       if (element.isAbstract) {
         return AbstractFunctionDeclaration(prelude);
       }
       FunctionBody body;
+      /*debugger(
+          when: element.location.toString().trim() ==
+              r'package:example/example.dart;package:example/example.dart;__StateB;_ctorThree');*/
+
       if (element is el_impl.FunctionElementImpl) {
-        final node = element.linkedNode as ast.FunctionDeclaration;
+        final node = n as ast.FunctionDeclaration;
         body = FunctionBody.fromAst(node.functionExpression.body);
       } else if (element is el_impl.MethodElementImpl) {
-        final node = element.linkedNode as ast.MethodDeclaration;
+        final node = n as ast.MethodDeclaration;
         body = FunctionBody.fromAst(node.body);
       } else {
         throw TypeError();
@@ -1072,31 +1105,32 @@ class FunctionDeclarationPrelude
   FunctionDeclarationPrelude(
       this.parameters, this.name, this.returnType, this.isStatic);
 
-  factory FunctionDeclarationPrelude.fromElement(
-    el.ExecutableElement element, {
+  static Future<FunctionDeclarationPrelude> fromElement(
+    el.ExecutableElement element,
+    ASTNodeResolver resolver, {
     bool returnTypeFromAst = true,
     bool allowsDynamicReturn = false,
-  }) {
+  }) async {
     /// [element] is an [el.FunctionElement], [el.PropertyAccessorElement], or
     /// [el.MethodElement].
     QualifiedType returnType;
-    if (element is el_impl.FunctionElementImpl) {
-      final node = element.linkedNode as ast.FunctionDeclaration;
-      returnType = QualifiedType.fromAst(node?.returnType);
-    }
-    if (element is el_impl.MethodElementImpl) {
-      final node = element.linkedNode as ast.MethodDeclaration;
-      returnType = QualifiedType.fromAst(node?.returnType);
-    }
     try {
-      returnType ??= QualifiedType.fromDartType(element.returnType, false);
+      if (element is el_impl.FunctionElementImpl) {
+        final node = await resolver(element) as ast.FunctionDeclaration;
+        returnType = QualifiedType.fromAst(node?.returnType);
+      }
+      if (element is el_impl.MethodElementImpl) {
+        final node = await resolver(element) as ast.MethodDeclaration;
+        returnType = QualifiedType.fromAst(node?.returnType);
+      }
+      returnType ??= QualifiedType.fromDartType(element.returnType, true);
     } on QualifiedTypeError catch (e) {
       print(e);
-      /*throw e.withContext(
-          'FunctionDeclarationPrelude.fromElement(${element.location})');*/
+      throw e.withContext(
+          'FunctionDeclarationPrelude.fromElement(${element.location})');
     }
     return FunctionDeclarationPrelude(
-      FunctionParameters.fromElement(element),
+      await FunctionParameters.fromElement(element, resolver),
       element.name,
       returnType,
       element.isStatic,
@@ -1104,6 +1138,7 @@ class FunctionDeclarationPrelude
       ..annsFromElement(element)
       ..docFromElement(element);
   }
+
   @override
   String toSource({bool typeArgumentsAlso = true}) =>
       '${isStatic ? 'static ' : ''}${returnType?.toSource() ?? ''} $name${parameters?.toSource()}';
@@ -1127,10 +1162,10 @@ class ClassModifiers implements Code {
     this.implemented,
     this.mixed,
   );
-  factory ClassModifiers.fromElement(
+  static Future<ClassModifiers> fromElement(
     el.ClassElement cls, {
-    bool typesFromAst = true,
-  }) {
+    ASTNodeResolver resolver,
+  }) async {
     try {
       final typeParams = TypeParamList(cls.typeParameters //
           .map((e) => TypeParam.fromElement(e))
@@ -1138,9 +1173,8 @@ class ClassModifiers implements Code {
       QualifiedType superType;
       final implemented = <QualifiedType>[];
       final mixed = <QualifiedType>[];
-      if (typesFromAst) {
-        final node = (cls as el_impl.ClassElementImpl).linkedNode
-            as ast.ClassOrMixinDeclaration;
+      if (resolver != null) {
+        final node = await resolver(cls) as ast.ClassOrMixinDeclaration;
         implemented.addAll(node?.implementsClause?.interfaces
                 ?.map((e) => QualifiedType.fromAst(e)) ??
             []);

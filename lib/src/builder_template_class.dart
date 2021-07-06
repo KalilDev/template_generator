@@ -38,8 +38,8 @@ class BuilderTemplateClassFactory extends ClassCodeBuilder {
   }
 
   @override
-  ClassModifiers get verbatinModifiers {
-    final modifiers = super.verbatinModifiers;
+  Future<ClassModifiers> get verbatinModifiers async {
+    final modifiers = await super.verbatinModifiers;
 
     modifiers.implemented.add(ParameterizedType(
         TypeArgumentList([
@@ -68,21 +68,26 @@ class BuilderTemplateClassFactory extends ClassCodeBuilder {
             .map((e) => FieldDeclaration.fromElement(e))
             .bind((e) => staticFieldRedirect(e, className)),
       ];
-  List<FieldDeclaration> get _fields => [
-        ...cls.methods
-            .map((e) => FunctionDeclaration.fromElement(e))
-            .map((e) => staticFunctionRedirect(e, className)),
+  Future<List<FieldDeclaration>> get _fields async => [
+        ...(await cls.methods
+            .map((e) => FunctionDeclaration.fromElement(e, resolver))
+            .wait()
+            .then((decls) =>
+                decls.map((e) => staticFunctionRedirect(e, className)))),
         ...cls.fields.map((e) => FieldDeclaration.fromElement(e))
       ];
 
   @override
-  Code build() => BuilderTemplateClass(
+  Future<ClassCode> build() async => BuilderTemplateClass(
         comment: cls.documentationComment,
         className: demangledClassName,
-        modifiers: modifiers,
+        modifiers: await modifiers,
         acessors: _acessors,
-        fields: _fields,
+        fields: await _fields,
       )..visitTypes(TypeNameDemangler());
+
+  @override
+  ASTNodeResolver resolver;
 }
 
 class BuilderTemplateClass extends ClassCode {

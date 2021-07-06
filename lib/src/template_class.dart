@@ -88,12 +88,13 @@ class TemplateClassFactory extends ClassCodeBuilder {
 
   bool get hasHiveType => _hiveTypeAnnotation?.isNotEmpty ?? false;
 
-  Iterable<AcessorDeclaration> get _abstractGetterDeclarations => cls.accessors
+  Future<List<AcessorDeclaration>> get _abstractGetterDeclarations async => cls
+      .accessors
       .where((e) => e.isGetter && e.isAbstract)
       .map(liftTry)
       .map((e) => e
-          .fmap((e) => AcessorDeclaration.fromElement(e))
-          .fmap((e) => e..visitTypes(TypeNameDemangler())))
+          .fmap((e) => AcessorDeclaration.fromElement(e, resolver))
+          .fmap((e) => e.then((e) => e..visitTypes(TypeNameDemangler()))))
       .pipe(runTries)
       .pipe((e) => handlePartitionedErrors(
           e,
@@ -102,35 +103,37 @@ class TemplateClassFactory extends ClassCodeBuilder {
                   'with the following errors:\n...{}\n'
                   'Hint: If you want to use an class generated from a @Template'
                   'as the type of the getter, use mangled class name (prefixed '
-                  'with $mangledPrefix)!')));
+                  'with $mangledPrefix)!')))
+      .wait();
 
-  List<Reference> get valueReferences => _abstractGetterDeclarations
-      .map((e) => Reference(e.type, e.name))
-      .toList();
+  Future<List<Reference>> get valueReferences => _abstractGetterDeclarations
+      .then((decls) => decls.map((e) => Reference(e.type, e.name)).toList());
 
   Iterable<FieldDeclaration> get _concreteFields => cls.fields
       .where((e) => e.isStatic)
       .map((e) => FieldDeclaration.fromElement(e));
-  Iterable<Tuple2<String, ConcreteFunctionDeclaration>>
+  Future<Iterable<Tuple2<String, ConcreteFunctionDeclaration>>>
       get _annotatedWithConstructor => cls.methods
           .where((e) => e.isStatic)
           .where(constructorChecker.hasAnnotationOf)
-          .map((e) => Tuple2(
+          .map((e) async => Tuple2(
               ConstantReader(constructorChecker.firstAnnotationOfExact(e)),
-              FunctionDeclaration.fromElement(e)
-                  as ConcreteFunctionDeclaration))
-          .map((e) => e.left((e) => e.read("name")))
-          .map((e) =>
-              Tuple2(e.item1.isString ? e.item1.stringValue : null, e.item2));
-  Iterable<ConcreteFunctionDeclaration> get _notAnnotatedWithConstructor =>
+              await FunctionDeclaration.fromElement(e, resolver)
+                  .then((e) => e as ConcreteFunctionDeclaration)))
+          .wait()
+          .then((e) => e.map((e) => e.left((e) => e.read("name"))).map((e) =>
+              Tuple2(e.item1.isString ? e.item1.stringValue : null, e.item2)));
+  Future<List<ConcreteFunctionDeclaration>> get _notAnnotatedWithConstructor =>
       cls.methods
           .where((e) => e.isStatic)
           .where((e) => !constructorChecker.hasAnnotationOf(e))
-          .map((e) => FunctionDeclaration.fromElement(e))
-          .cast();
+          .map((e) => FunctionDeclaration.fromElement(e, resolver)
+              .then((e) => e as ConcreteFunctionDeclaration))
+          .wait();
 
-  FactoryDeclaration get defaultFactoryDeclaration =>
-      _builderFactories.singleWhere((e) => e.name == null || e.name.isEmpty);
+  Future<FactoryDeclaration> get defaultFactoryDeclaration async =>
+      _builderFactories.then((factories) =>
+          factories.singleWhere((e) => e.name == null || e.name.isEmpty));
 
   void addBuilder(BuilderTemplateClassFactory builder) {
     builder.addToTemplate(this);
@@ -156,8 +159,8 @@ class TemplateClassFactory extends ClassCodeBuilder {
 
   bool get isUnion => unionFactory != null;
   @override
-  ClassModifiers get verbatinModifiers {
-    final modifiers = super.verbatinModifiers;
+  Future<ClassModifiers> get verbatinModifiers async {
+    final modifiers = await super.verbatinModifiers;
 
     modifiers.implemented.add(ParameterizedType(
         TypeArgumentList([
@@ -285,14 +288,16 @@ class TemplateClassFactory extends ClassCodeBuilder {
             '$sourceClassName.${staticMember.prelude.name}${staticMember.prelude.parameters.toApplicationSource().replaceFirst('self', 'this')}'));
   }
 
-  Set<Reference> get allCataReferences =>
-      {...valueReferences, ...?unionFactory?.valueReferences};
-  FunctionType cataFunctionType(
-      TypeParam returnTypeParam, bool includeSelfTypeParams) {
-    final named =
-        Map.fromEntries(allCataReferences.map((e) => MapEntry(e.name, e.type)));
+  Future<Set<Reference>> get allCataReferences async =>
+      {...await valueReferences, ...?await unionFactory?.valueReferences};
+  Future<FunctionType> cataFunctionType(
+    TypeParam returnTypeParam,
+    bool includeSelfTypeParams,
+  ) async {
+    final named = Map.fromEntries(
+        (await allCataReferences).map((e) => MapEntry(e.name, e.type)));
     return FunctionType(
-      includeSelfTypeParams ? modifiers.typeParams : TypeParamList.empty(),
+      includeSelfTypeParams ? await typeParamList : TypeParamList.empty(),
       returnTypeParam.toArgument(),
       [],
       [],
@@ -300,59 +305,67 @@ class TemplateClassFactory extends ClassCodeBuilder {
     );
   }
 
-  FunctionDeclarationPrelude _cataFunctionPrelude(TypeParam returnTypeParam) =>
+  Future<FunctionDeclarationPrelude> _cataFunctionPrelude(
+          TypeParam returnTypeParam) async =>
       FunctionDeclarationPrelude(
         FunctionParameters(TypeParamList([returnTypeParam]), [
           PositionalRequiredFunctionParameter(
-              cataFunctionType(returnTypeParam, false), 'fn', false, [])
+              await cataFunctionType(returnTypeParam, false), 'fn', false, [])
         ], [], []),
         'cata',
         returnTypeParam.toArgument(),
         false,
       );
-  ConcreteFunctionDeclaration _cataFunctionDeclaration() {
+  Future<ConcreteFunctionDeclaration> _cataFunctionDeclaration() async {
     final returnTypeParam = TypeParam('R', null);
-    final params = allCataReferences
+    final params = (await allCataReferences)
         .map((e) => e.name)
         .map((e) => '$e: this.$e')
         .join(',');
     return ConcreteFunctionDeclaration(
-      _cataFunctionPrelude(returnTypeParam),
+      await _cataFunctionPrelude(returnTypeParam),
       FunctionArrowBody(null, 'fn($params)'),
     );
   }
 
-  List<FactoryDeclaration> get _builderFactories => [
-        if (_annotatedWithConstructor
-            .every((e) => e.item1 != null && e.item1.isNotEmpty))
-          defaultRedirectingFactoryName(
-              modifiers.typeParams, demangledClassName, builderClassName),
-        ..._annotatedWithConstructor //
-            .map((e) => staticFactoryConstructor(
-                  e.item2,
-                  modifiers.typeParams,
-                  e.item1,
-                  className,
-                  demangledClassName,
-                ))
+  Future<List<FactoryDeclaration>> get _builderFactories async {
+    final typeParams = await typeParamList;
+    return [
+      if ((await _annotatedWithConstructor)
+          .every((e) => e.item1 != null && e.item1.isNotEmpty))
+        defaultRedirectingFactoryName(
+          typeParams,
+          demangledClassName,
+          builderClassName,
+        ),
+      ...(await _annotatedWithConstructor) //
+          .map((e) => staticFactoryConstructor(
+                e.item2,
+                typeParams,
+                e.item1,
+                className,
+                demangledClassName,
+              ))
+    ];
+  }
+
+  Future<List<FunctionDeclaration>> get _functions async => [
+        await _cataFunctionDeclaration(),
       ];
-  List<FunctionDeclaration> get _functions => [
-        _cataFunctionDeclaration(),
-      ];
-  List<AcessorDeclaration> get _acessors => [
+  Future<List<AcessorDeclaration>> get _acessors async => [
         ..._concreteFields.bind((e) => staticFieldRedirect(e, className)),
-        ..._abstractGetterDeclarations,
+        ...await _abstractGetterDeclarations,
       ];
-  List<FieldDeclaration> get _fields => [
-        ..._notAnnotatedWithConstructor
+  Future<List<FieldDeclaration>> get _fields async => [
+        ...(await _notAnnotatedWithConstructor)
             .map((e) => staticFunctionRedirect(e, className))
       ];
 
-  void _validate() {
+  Future<void> _validate() async {
     collectFailures(cls.methods.where((e) => !e.isStatic).map((e) => e.name),
         format:
             "Only static methods are allowed, but the following aren't:\n...{}"
-            '\nIf you want an member method use an mixin with @MixTo(${thisType.toSource()}).',
+            '\nIf you want an member method use an mixin with @MixTo(${(await thisType).toSource()}).',
         errorFormat: '$className.{}');
     collectFailures(
         cls.accessors
@@ -373,30 +386,34 @@ class TemplateClassFactory extends ClassCodeBuilder {
   }
 
   @override
-  Code build() {
-    _validate();
+  Future<ClassCode> build() async {
+    await _validate();
     return TemplateClass(
       annotations: _annotations,
       comment: cls.documentationComment,
       className: demangledClassName,
-      modifiers: modifiers,
+      modifiers: await modifiers,
       constructor: _constructor,
-      factories: _builderFactories,
+      factories: await _builderFactories,
       visit: isUnion
-          ? ConcreteFunctionDeclaration(unionFactory.visitSignature,
-              unionFactory.visitInvokeBodyFor(this))
+          ? ConcreteFunctionDeclaration(await unionFactory.visitSignature,
+              await unionFactory.visitInvokeBodyFor(this))
           : null,
       visitCata: isUnion
-          ? ConcreteFunctionDeclaration(unionFactory.visitCataSignature,
-              unionFactory.visitCataInvokeBodyFor(this))
+          ? ConcreteFunctionDeclaration(await unionFactory.visitCataSignature,
+              await unionFactory.visitCataInvokeBodyFor(this))
           : null,
-      functions: _functions,
-      acessors: _acessors,
-      fields: _fields,
+      functions: await _functions,
+      acessors: await _acessors,
+      fields: await _fields,
     )..visitTypes(TypeNameDemangler());
   }
 
-  TypeParamList get typeParamList => modifiers.typeParams;
+  @override
+  ASTNodeResolver resolver;
+
+  Future<TypeParamList> get typeParamList =>
+      modifiers.then((mods) => mods.typeParams);
 
   @override
   void addMixinType(QualifiedType mixin) => mixins.add(mixin);

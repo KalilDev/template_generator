@@ -45,9 +45,11 @@ extension _Unwrap3a<T1, T2, T3, T4>
 class TemplateGenerator extends Generator {
   @override
   FutureOr<String> generate(LibraryReader library, BuildStep buildStep) async {
+    Future<AstNode> resolver(Element e) =>
+        buildStep.resolver.astNodeFor(e, resolve: false);
     final unitedToUnion = <ClassElement, UnionClassFactory>{};
     final nameToTemplate = <String, TemplateClassFactory>{};
-    final builders = <String, util.CodeBuilder>{};
+    final builders = <String, ClassCodeBuilder>{};
     // Walking order must be union -> template -> builder template, as this
     // allows an single pass
     for (final union
@@ -57,7 +59,8 @@ class TemplateGenerator extends Generator {
       );
       final uFactory = UnionClassFactory()
         ..cls = union
-        ..unionAnnotation = annotation;
+        ..unionAnnotation = annotation
+        ..resolver = resolver;
 
       unitedToUnion.addEntries(
         annotation
@@ -76,7 +79,8 @@ class TemplateGenerator extends Generator {
         ..cls = template
         ..templateAnnotation = ConstantReader(
           util.templateChecker.annotationsOfExact(template).single,
-        );
+        )
+        ..resolver = resolver;
       if (unitedToUnion.containsKey(template)) {
         final union = unitedToUnion.remove(template);
         union.addMember(tFactory);
@@ -93,7 +97,8 @@ class TemplateGenerator extends Generator {
           util.builderTemplateChecker
               .annotationsOfExact(builderTemplate)
               .single,
-        );
+        )
+        ..resolver = resolver;
       final templateName = bFactory.templateClassName();
       final template = nameToTemplate.remove(templateName);
       util.verify(template != null,
@@ -131,20 +136,22 @@ class TemplateGenerator extends Generator {
 
     return builders.values
         .map((e) => e.build())
-        .map((e) => e.toSource())
-        .where((e) => e?.isNotEmpty ?? false)
-        .fold<StringBuffer>(
-          StringBuffer(),
-          (buff, source) => buff..write(source),
-        )
-        .pipe((buff) => _addSerializersIfNotEmpty(buff, builders.values))
-        .pipe((buff) => _addHiveTypeIfNotEmpty(buff, builders.values))
-        .pipe(_addIgnoreForFileIfNotEmpty)
-        .pipe((e) => e.toString());
+        .wait()
+        .then((results) => results
+            .map((e) => e.toSource())
+            .where((e) => e?.isNotEmpty ?? false)
+            .fold<StringBuffer>(
+              StringBuffer(),
+              (buff, source) => buff..write(source),
+            )
+            .pipe((buff) => _addSerializersIfNotEmpty(buff, builders.values))
+            .pipe((buff) => _addHiveTypeIfNotEmpty(buff, builders.values))
+            .pipe(_addIgnoreForFileIfNotEmpty)
+            .pipe((e) => e.toString()));
   }
 
   StringBuffer _addSerializersIfNotEmpty(
-      StringBuffer buff, Iterable<util.CodeBuilder> builders) {
+      StringBuffer buff, Iterable<ClassCodeBuilder> builders) {
     if (buff.isEmpty) {
       return buff;
     }
@@ -162,7 +169,7 @@ class TemplateGenerator extends Generator {
   }
 
   StringBuffer _addHiveTypeIfNotEmpty(
-      StringBuffer buff, Iterable<util.CodeBuilder> builders) {
+      StringBuffer buff, Iterable<ClassCodeBuilder> builders) {
     if (buff.isEmpty) {
       return buff;
     }

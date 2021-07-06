@@ -15,9 +15,11 @@ import 'package:meta/meta.dart';
 class UnionClassFactory extends ClassCodeBuilder {
   final List<TemplateClassFactory> memberFactories = [];
   ConstantReader unionAnnotation;
-  Iterable<AcessorDeclaration> get _abstractGetterDeclarations => cls.accessors
-      .where((e) => e.isGetter && e.isAbstract)
-      .map((e) => AcessorDeclaration.fromElement(e));
+  Future<Iterable<AcessorDeclaration>> get _abstractGetterDeclarations =>
+      cls.accessors
+          .where((e) => e.isGetter && e.isAbstract)
+          .map((e) => AcessorDeclaration.fromElement(e, resolver))
+          .wait();
 
   String get afix {
     final afix = unionAnnotation.read('afix');
@@ -27,11 +29,11 @@ class UnionClassFactory extends ClassCodeBuilder {
     return afix.stringValue;
   }
 
-  List<Reference> get valueReferences => cls.accessors
+  Future<List<Reference>> get valueReferences => cls.accessors
       .where((e) => e.isGetter && e.isAbstract)
-      .map((e) => AcessorDeclaration.fromElement(e))
-      .map((e) => Reference(e.type, e.name))
-      .toList();
+      .map((e) => AcessorDeclaration.fromElement(e, resolver))
+      .wait()
+      .then((decls) => decls.map((e) => Reference(e.type, e.name)).toList());
 
   static NamedFunctionParameter _visitFunctionParamFor(
     TypeParamList typeParams,
@@ -79,44 +81,44 @@ class UnionClassFactory extends ClassCodeBuilder {
     );
   }
 
-  FunctionDeclarationPrelude get visitCataSignature {
+  Future<FunctionDeclarationPrelude> get visitCataSignature async {
     final returnTypeParam = TypeParam('R', null);
     return FunctionDeclarationPrelude(
       FunctionParameters(
           TypeParamList([returnTypeParam]),
           [],
           [],
-          memberFactories
-              .map((e) => NamedFunctionParameter(
-                    e.cataFunctionType(returnTypeParam, true),
+          await memberFactories
+              .map((e) async => NamedFunctionParameter(
+                    await e.cataFunctionType(returnTypeParam, true),
                     _visitParamNameFor(e),
                     false,
                     [],
                     null,
                     true,
                   ))
-              .toList()),
+              .wait()),
       'visitCata',
       returnTypeParam.toArgument(),
       false,
     );
   }
 
-  FunctionDeclarationPrelude get visitSignature {
+  Future<FunctionDeclarationPrelude> get visitSignature async {
     final returnTypeParam = TypeParam('R', null);
     return FunctionDeclarationPrelude(
       FunctionParameters(
           TypeParamList([returnTypeParam]),
           [],
           [],
-          memberFactories
-              .map((e) => _visitFunctionParamFor(
-                    e.typeParamList,
+          await memberFactories
+              .map((e) async => _visitFunctionParamFor(
+                    await e.typeParamList,
                     e.demangledClassName,
                     returnTypeParam,
                     _visitParamNameFor(e),
                   ))
-              .toList()),
+              .wait()),
       'visit',
       returnTypeParam.toArgument(),
       false,
@@ -130,19 +132,17 @@ class UnionClassFactory extends ClassCodeBuilder {
     return name;
   }
 
-  FunctionBody visitInvokeBodyFor(TemplateClassFactory f) {
-    return FunctionArrowBody(
-        null, '${_visitParamNameFor(f)}${f.typeParamList.toSource()}(this)');
+  Future<FunctionBody> visitInvokeBodyFor(TemplateClassFactory f) async {
+    return FunctionArrowBody(null,
+        '${_visitParamNameFor(f)}${(await f.typeParamList).toSource()}(this)');
   }
 
-  FunctionBody visitCataInvokeBodyFor(TemplateClassFactory f) {
-    final namedParameters = f.allCataReferences
-        .map((e) => e.name)
-        .map((e) => '$e: this.$e')
-        .join(', ');
+  Future<FunctionBody> visitCataInvokeBodyFor(TemplateClassFactory f) async {
+    final namedParameters = await f.allCataReferences.then(
+        (refs) => refs.map((e) => e.name).map((e) => '$e: this.$e').join(', '));
 
     return FunctionArrowBody(null,
-        '${_visitParamNameFor(f)}${f.typeParamList.toSource()}($namedParameters)');
+        '${_visitParamNameFor(f)}${(await f.typeParamList).toSource()}($namedParameters)');
   }
 
   void addMember(TemplateClassFactory member) {
@@ -150,14 +150,16 @@ class UnionClassFactory extends ClassCodeBuilder {
     memberFactories.add(member);
   }
 
-  FunctionDeclaration _staticFactoryFrom(TemplateClassFactory classFactory) {
-    final declaration = classFactory.defaultFactoryDeclaration;
+  Future<FunctionDeclaration> _staticFactoryFrom(
+      TemplateClassFactory classFactory) async {
+    final declaration = await classFactory.defaultFactoryDeclaration;
     final name = _visitParamNameFor(classFactory);
+
     return ConcreteFunctionDeclaration(
         FunctionDeclarationPrelude(
           declaration.parameters,
           name,
-          ParameterizedType(classFactory.typeParamList.toArguments(),
+          ParameterizedType((await classFactory.typeParamList).toArguments(),
               classFactory.demangledClassName),
           true,
         ),
@@ -165,34 +167,35 @@ class UnionClassFactory extends ClassCodeBuilder {
             '${classFactory.demangledClassName}${declaration.parameters.toApplicationSource()}'));
   }
 
-  List<FunctionDeclaration> get _memberStaticFactories =>
-      memberFactories.map(_staticFactoryFrom).toList();
+  Future<List<FunctionDeclaration>> get _memberStaticFactories =>
+      memberFactories.map(_staticFactoryFrom).wait();
 
-  List<AcessorDeclaration> get _acessors => cls.fields
+  Future<List<AcessorDeclaration>> get _acessors async => cls.fields
       .where((e) => e.isStatic)
       .map((e) => FieldDeclaration.fromElement(e))
       .bind((e) => staticFieldRedirect(e, className))
-      .followedBy(_abstractGetterDeclarations)
+      .followedBy(await _abstractGetterDeclarations)
       .toList();
-  List<FieldDeclaration> get _fields => cls.methods
+  Future<List<FieldDeclaration>> get _fields => cls.methods
       .where((e) => e.isStatic)
-      .map((e) => FunctionDeclaration.fromElement(e))
-      .map((e) => staticFunctionRedirect(e, className))
-      .toList();
+      .map((e) => FunctionDeclaration.fromElement(e, resolver))
+      .wait()
+      .then((decls) =>
+          decls.map((e) => staticFunctionRedirect(e, className)).toList());
 
   @override
-  Code build() {
+  Future<ClassCode> build() async {
     return UnionClass(
       comment: cls.documentationComment,
       className: demangledClassName,
-      modifiers: ClassModifiers.fromElement(cls)
+      modifiers: await ClassModifiers.fromElement(cls)
         ..visitTypes(TypeNameDemangler()),
-      memberStaticFactories: _memberStaticFactories,
-      visit: AbstractFunctionDeclaration(visitSignature),
-      visitCata: AbstractFunctionDeclaration(visitCataSignature),
+      memberStaticFactories: await _memberStaticFactories,
+      visit: AbstractFunctionDeclaration(await visitSignature),
+      visitCata: AbstractFunctionDeclaration(await visitCataSignature),
       functions: [],
-      acessors: _acessors,
-      fields: _fields,
+      acessors: await _acessors,
+      fields: await _fields,
     )..visitTypes(TypeNameDemangler());
   }
 
@@ -204,6 +207,9 @@ class UnionClassFactory extends ClassCodeBuilder {
 
   @override
   Set<QualifiedType> mixins = {};
+
+  @override
+  ASTNodeResolver resolver;
 }
 
 class UnionClass extends ClassCode {

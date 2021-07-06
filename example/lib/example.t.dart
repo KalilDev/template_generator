@@ -9,29 +9,31 @@ part of 'example.dart';
 @BuiltValue(instantiable: false)
 
 /// ABC class
-abstract class ABC {
+abstract class ABC extends Object {
   static A a([
-    void Function([
+    void Function(
       ABuilder,
-    ])
+    )
         updates,
   ]) =>
       A(
         updates,
       );
+
   static B b([
-    void Function([
+    void Function(
       BBuilder,
-    ])
+    )
         updates,
   ]) =>
       B(
         updates,
       );
+
   static C<T> c<T>([
-    void Function([
+    void Function(
       CBuilder<T>,
-    ])
+    )
         updates,
   ]) =>
       C<T>(
@@ -65,6 +67,7 @@ abstract class ABC {
 
   /// Visit every member of the union [ABC]. Prefer this over explicit
   /// `as` checks because it is exaustive, therefore safer.
+
   R visit<R>({
     @required
         R Function(
@@ -86,6 +89,7 @@ abstract class ABC {
   /// Visit and destructure every member of the union [ABC]. Prefer
   /// this over explicit `as` checks because it is exaustive, therefore
   /// safer.
+
   R visitCata<R>({
     @required
         R Function({
@@ -106,20 +110,22 @@ abstract class ABC {
   });
 
   /// Serialize an [ABC] to an json object.
+
   Map<String, dynamic> toJson();
 }
 
 @BuiltValue(instantiable: false)
-abstract class State {
+abstract class State extends Object {
   static StateA a([
-    void Function([
+    void Function(
       StateABuilder,
-    ])
+    )
         updates,
   ]) =>
       StateA(
         updates,
       );
+
   static StateB b(
     int b, [
     void Function(
@@ -161,6 +167,7 @@ abstract class State {
 
   /// Visit every member of the union [State]. Prefer this over explicit
   /// `as` checks because it is exaustive, therefore safer.
+
   R visit<R>({
     @required
         R Function(
@@ -177,6 +184,7 @@ abstract class State {
   /// Visit and destructure every member of the union [State]. Prefer
   /// this over explicit `as` checks because it is exaustive, therefore
   /// safer.
+
   R visitCata<R>({
     @required
         R Function({
@@ -192,9 +200,11 @@ abstract class State {
   });
 
   /// Serialize an [State] to an json object.
+
   Map<String, dynamic> toJson();
 
   static int get stateIndex => __State.stateIndex;
+
   static const init = __State.init;
 }
 
@@ -202,23 +212,26 @@ abstract class Foo implements Built<Foo, FooBuilder> {
   Foo._();
 
   factory Foo([
-    void Function([
+    void Function(
       FooBuilder,
-    ])
+    )
         updates,
   ]) = _$Foo;
 
   /// Serialize an [Foo] to an json object.
+
   Map<String, dynamic> toJson() =>
       serializers.serialize(this) as Map<String, dynamic>;
 
   /// Deserialize an [Foo] from an json object.
+
   static Foo fromJson(
     Map<String, dynamic> json,
   ) =>
       serializers.deserializeWith(Foo.serializer, json);
 
   /// The [Serializer] that can serialize and deserialize an [Foo].
+
   static Serializer<Foo> get serializer => _$fooSerializer;
 
   R cata<R>(
@@ -228,30 +241,34 @@ abstract class Foo implements Built<Foo, FooBuilder> {
         fn,
   ) =>
       fn(a: this.a);
+
   int get a;
 }
 
-abstract class Bar with _bar implements Built<Bar, BarBuilder> {
+abstract class Bar implements Built<Bar, BarBuilder> {
   Bar._();
 
   factory Bar([
-    void Function([
+    void Function(
       BarBuilder,
-    ])
+    )
         updates,
   ]) = _$Bar;
 
   /// Serialize an [Bar] to an json object.
+
   Map<String, dynamic> toJson() =>
       serializers.serialize(this) as Map<String, dynamic>;
 
   /// Deserialize an [Bar] from an json object.
+
   static Bar fromJson(
     Map<String, dynamic> json,
   ) =>
       serializers.deserializeWith(Bar.serializer, json);
 
   /// The [Serializer] that can serialize and deserialize an [Bar].
+
   static Serializer<Bar> get serializer => _$barSerializer;
 
   R cata<R>(
@@ -261,7 +278,9 @@ abstract class Bar with _bar implements Built<Bar, BarBuilder> {
         fn,
   ) =>
       fn(a: this.a);
+
   int get a;
+
   static const init = __Bar.init;
 }
 
@@ -269,9 +288,9 @@ abstract class A implements Built<A, ABuilder>, ABC {
   A._();
 
   factory A([
-    void Function([
+    void Function(
       ABuilder,
-    ])
+    )
         updates,
   ]) = _$A;
 
@@ -320,12 +339,14 @@ abstract class A implements Built<A, ABuilder>, ABC {
       serializers.serialize(this) as Map<String, dynamic>;
 
   /// Deserialize an [A] from an json object.
+
   static A fromJson(
     Map<String, dynamic> json,
   ) =>
       serializers.deserializeWith(A.serializer, json);
 
   /// The [Serializer] that can serialize and deserialize an [A].
+
   static Serializer<A> get serializer => _$aSerializer;
 
   R cata<R>(
@@ -335,6 +356,7 @@ abstract class A implements Built<A, ABuilder>, ABC {
         fn,
   ) =>
       fn(a: this.a);
+
   int get a;
 }
 
@@ -342,9 +364,9 @@ abstract class B implements Built<B, BBuilder>, ABC {
   B._();
 
   factory B([
-    void Function([
+    void Function(
       BBuilder,
-    ])
+    )
         updates,
   ]) = _$B;
 
@@ -393,12 +415,14 @@ abstract class B implements Built<B, BBuilder>, ABC {
       serializers.serialize(this) as Map<String, dynamic>;
 
   /// Deserialize an [B] from an json object.
+
   static B fromJson(
     Map<String, dynamic> json,
   ) =>
       serializers.deserializeWith(B.serializer, json);
 
   /// The [Serializer] that can serialize and deserialize an [B].
+
   static Serializer<B> get serializer => _$bSerializer;
 
   R cata<R>(
@@ -408,6 +432,7 @@ abstract class B implements Built<B, BBuilder>, ABC {
         fn,
   ) =>
       fn(b: this.b);
+
   int get b;
 }
 
@@ -415,7 +440,6 @@ abstract class B implements Built<B, BBuilder>, ABC {
 
 /// C class
 abstract class C<T>
-    with _c<T>
     implements GenericInterface<T>, Built<C<T>, CBuilder<T>>, ABC {
   C._() {
     int foo = 1;
@@ -423,9 +447,9 @@ abstract class C<T>
   }
 
   factory C([
-    void Function([
+    void Function(
       CBuilder<T>,
-    ])
+    )
         updates,
   ]) = _$C<T>;
 
@@ -474,12 +498,14 @@ abstract class C<T>
       serializers.serialize(this) as Map<String, dynamic>;
 
   /// Deserialize an [C] from an json object.
+
   static C fromJson(
     Map<String, dynamic> json,
   ) =>
       serializers.deserializeWith(C.serializer, json);
 
   /// The [Serializer] that can serialize and deserialize an [C].
+
   static Serializer<C> get serializer => _$cSerializer;
 
   R cata<R>(
@@ -490,7 +516,14 @@ abstract class C<T>
         fn,
   ) =>
       fn(c: this.c, t: this.t);
+
+  /// c
+
   int get c;
+
+  /// Generic param
+  /// t
+
   T get t;
 }
 
@@ -498,9 +531,9 @@ abstract class StateA implements Built<StateA, StateABuilder>, State {
   StateA._();
 
   factory StateA([
-    void Function([
+    void Function(
       StateABuilder,
-    ])
+    )
         updates,
   ]) = _$StateA;
 
@@ -539,12 +572,14 @@ abstract class StateA implements Built<StateA, StateABuilder>, State {
       serializers.serialize(this) as Map<String, dynamic>;
 
   /// Deserialize an [StateA] from an json object.
+
   static StateA fromJson(
     Map<String, dynamic> json,
   ) =>
       serializers.deserializeWith(StateA.serializer, json);
 
   /// The [Serializer] that can serialize and deserialize an [StateA].
+
   static Serializer<StateA> get serializer => _$stateASerializer;
 
   R cata<R>(
@@ -554,12 +589,11 @@ abstract class StateA implements Built<StateA, StateABuilder>, State {
         fn,
   ) =>
       fn(b: this.b);
+
   int get b;
 }
 
-abstract class StateB
-    with _stateB
-    implements Built<StateB, StateBBuilder>, State {
+abstract class StateB implements Built<StateB, StateBBuilder>, State {
   StateB._();
 
   factory StateB(
@@ -576,6 +610,7 @@ abstract class StateB
           updates,
           a,
         )));
+
   factory StateB.two(
     String name,
   ) =>
@@ -583,6 +618,7 @@ abstract class StateB
         ..update(__StateB._ctorTwo(
           name,
         )));
+
   factory StateB.three(
     StateB b,
   ) =>
@@ -626,12 +662,14 @@ abstract class StateB
       serializers.serialize(this) as Map<String, dynamic>;
 
   /// Deserialize an [StateB] from an json object.
+
   static StateB fromJson(
     Map<String, dynamic> json,
   ) =>
       serializers.deserializeWith(StateB.serializer, json);
 
   /// The [Serializer] that can serialize and deserialize an [StateB].
+
   static Serializer<StateB> get serializer => _$stateBSerializer;
 
   R cata<R>(
@@ -642,9 +680,21 @@ abstract class StateB
         fn,
   ) =>
       fn(b: this.b, ints: this.ints);
+
   static int get index => __StateB.index;
+
   int get b;
+
   List<int> get ints;
+}
+
+abstract class StateABuilder
+    implements Builder<StateA, StateABuilder>, StateBuilder {
+  StateABuilder._();
+
+  factory StateABuilder() = _$StateABuilder;
+
+  int b;
 }
 
 const List<Type> _$serializableTypes = [

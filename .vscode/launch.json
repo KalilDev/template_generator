@@ -5,6 +5,16 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Debug generator",
+            "type": "dart",
+            "request": "launch",
+            "program": "${workspaceRoot}/example/.dart_tool/build/entrypoint/build.dart",
+            "cwd": "${workspaceRoot}/example/",
+            "args": [
+                "build"
+            ]
+        },
+        {
             "name": "template_generator",
             "request": "launch",
             "type": "dart"

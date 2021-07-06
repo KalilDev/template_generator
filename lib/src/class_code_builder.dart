@@ -1,35 +1,44 @@
 import 'package:analyzer/dart/element/element.dart';
 import 'package:template_generator/src/utils.dart';
 
-abstract class ClassCodeBuilder extends CodeBuilder {
+abstract class ClassCodeBuilder {
   ClassElement cls;
   String get className => cls.name;
   String get demangledClassName => demangled(className);
-  ClassModifiers get verbatinModifiers =>
-      ClassModifiers.fromElement(cls)..mixed.addAll(mixins);
-  ClassModifiers get modifiers =>
-      verbatinModifiers..visitTypes(TypeNameDemangler());
-  ParameterizedType get thisType => ParameterizedType(
-        verbatinModifiers.typeParams.toArguments(),
+  Future<ClassModifiers> get verbatinModifiers =>
+      ClassModifiers.fromElement(cls, resolver: resolver)
+          .then((mods) => mods..mixed.addAll(mixins));
+  Future<ClassModifiers> get modifiers =>
+      verbatinModifiers.then((mods) => mods..visitTypes(TypeNameDemangler()));
+  Future<ParameterizedType> get thisType async => ParameterizedType(
+        (await verbatinModifiers).typeParams.toArguments(),
         demangledClassName,
       );
-  void addMixin(ClassElement mixin) {
-    final mixinParams = ClassModifiers.fromElement(mixin).typeParams;
-    final hasSameParams = mixinParams == verbatinModifiers.typeParams;
+  ASTNodeResolver get resolver;
+  Future<void> addMixin(ClassElement mixin) async {
+    final mixinParams = (await ClassModifiers.fromElement(
+      mixin,
+      resolver: resolver,
+    ))
+        .typeParams;
+    final hasSameParams = mixinParams == (await verbatinModifiers).typeParams;
     final hasNoParams = mixinParams == TypeParamList.empty();
     verify(
         hasSameParams || hasNoParams,
         "The mixin class ${mixin.name} should have either no type arguments or "
-        "the same type arguments as ${thisType.toSource()}");
+        "the same type arguments as ${(await thisType).toSource()}");
 
     addMixinType(ParameterizedType(
-        hasSameParams ? thisType.typeArguments : TypeArgumentList.empty(),
+        hasSameParams
+            ? (await thisType).typeArguments
+            : TypeArgumentList.empty(),
         mixin.name));
   }
 
   void addMixinType(QualifiedType mixin);
 
   Iterable<QualifiedType> get mixins;
+  Future<ClassCode> build();
 }
 
 abstract class ClassCode extends Code {
