@@ -188,8 +188,7 @@ class UnionClassFactory extends ClassCodeBuilder {
     return UnionClass(
       comment: cls.documentationComment,
       className: demangledClassName,
-      modifiers: await ClassModifiers.fromElement(cls)
-        ..visitTypes(TypeNameDemangler()),
+      modifiers: await modifiers,
       memberStaticFactories: await _memberStaticFactories,
       visit: AbstractFunctionDeclaration(await visitSignature),
       visitCata: AbstractFunctionDeclaration(await visitCataSignature),

@@ -9,7 +9,13 @@ abstract class ClassCodeBuilder {
       ClassModifiers.fromElement(cls, resolver: resolver)
           .then((mods) => mods..mixed.addAll(mixins));
   Future<ClassModifiers> get modifiers =>
-      verbatinModifiers.then((mods) => mods..visitTypes(TypeNameDemangler()));
+      verbatinModifiers.then((mods) async => mods
+        ..visitTypes(TypeNameDemangler())
+        ..implemented.add(await verbatinThisType));
+  Future<ParameterizedType> get verbatinThisType async => ParameterizedType(
+        (await verbatinModifiers).typeParams.toArguments(),
+        className,
+      );
   Future<ParameterizedType> get thisType async => ParameterizedType(
         (await verbatinModifiers).typeParams.toArguments(),
         demangledClassName,
@@ -74,7 +80,7 @@ abstract class ClassCode extends Code {
 
   @override
   void visitTypes(TypeVisitor v) {
-    modifiers.visitTypes(v);
+    //modifiers.visitTypes(v);
     [
       factories,
       functions,

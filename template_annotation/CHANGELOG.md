@@ -1,3 +1,9 @@
+# 1.6.0
+- Added `Method`, `Getter` and `Setter` annotations.
+
+# 1.5.0
+- Removed `Member` annotation.
+
 # 1.4.0
 - Added `Member` annotation for creating members which need to use `this` with
   the correct type.

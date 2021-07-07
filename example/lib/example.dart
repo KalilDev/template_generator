@@ -14,6 +14,7 @@ final Serializers serializers =
 @template
 abstract class __Foo {
   int get a;
+  Bar get bar;
 }
 
 @MixTo(__Bar)

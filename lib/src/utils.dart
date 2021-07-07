@@ -860,8 +860,10 @@ abstract class AcessorDeclaration
   ) async {
     try {
       final acessor = await resolver(element) as ast.MethodDeclaration;
+      print('Acessor:');
+      print(acessor.toSource());
       return AcessorDeclaration.fromAst(
-          acessor, QualifiedType.fromDartType(element.returnType))
+          acessor, QualifiedType.fromAst(acessor.returnType))
         ..annsFromElement(element)
         ..docFromElement(element);
     } on QualifiedTypeError catch (e) {
@@ -1152,7 +1154,7 @@ class FunctionDeclarationPrelude
 
 class ClassModifiers implements Code {
   final TypeParamList typeParams;
-  final QualifiedType superType;
+  QualifiedType superType;
   final List<QualifiedType> implemented;
   final List<QualifiedType> mixed;
 

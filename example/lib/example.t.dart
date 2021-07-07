@@ -9,7 +9,7 @@ part of 'example.dart';
 @BuiltValue(instantiable: false)
 
 /// ABC class
-abstract class ABC extends Object {
+abstract class ABC implements __ABC {
   static A a([
     void Function(
       ABuilder,
@@ -115,7 +115,7 @@ abstract class ABC extends Object {
 }
 
 @BuiltValue(instantiable: false)
-abstract class State extends Object {
+abstract class State implements __State {
   static StateA a([
     void Function(
       StateABuilder,
@@ -208,7 +208,7 @@ abstract class State extends Object {
   static const init = __State.init;
 }
 
-abstract class Foo implements Built<Foo, FooBuilder> {
+abstract class Foo implements Built<Foo, FooBuilder>, __Foo {
   Foo._();
 
   factory Foo([
@@ -237,15 +237,18 @@ abstract class Foo implements Built<Foo, FooBuilder> {
   R cata<R>(
     R Function({
       int a,
+      Bar bar,
     })
         fn,
   ) =>
-      fn(a: this.a);
+      fn(a: this.a, bar: this.bar);
 
   int get a;
+
+  Bar get bar;
 }
 
-abstract class Bar implements Built<Bar, BarBuilder> {
+abstract class Bar implements Built<Bar, BarBuilder>, __Bar {
   Bar._();
 
   factory Bar([
@@ -284,7 +287,7 @@ abstract class Bar implements Built<Bar, BarBuilder> {
   static const init = __Bar.init;
 }
 
-abstract class A implements Built<A, ABuilder>, ABC {
+abstract class A implements Built<A, ABuilder>, ABC, __A {
   A._();
 
   factory A([
@@ -360,7 +363,7 @@ abstract class A implements Built<A, ABuilder>, ABC {
   int get a;
 }
 
-abstract class B implements Built<B, BBuilder>, ABC {
+abstract class B implements Built<B, BBuilder>, ABC, __B {
   B._();
 
   factory B([
@@ -440,7 +443,7 @@ abstract class B implements Built<B, BBuilder>, ABC {
 
 /// C class
 abstract class C<T>
-    implements GenericInterface<T>, Built<C<T>, CBuilder<T>>, ABC {
+    implements GenericInterface<T>, Built<C<T>, CBuilder<T>>, ABC, __C<T> {
   C._() {
     int foo = 1;
     foo++;
@@ -527,7 +530,7 @@ abstract class C<T>
   T get t;
 }
 
-abstract class StateA implements Built<StateA, StateABuilder>, State {
+abstract class StateA implements Built<StateA, StateABuilder>, State, __StateA {
   StateA._();
 
   factory StateA([
@@ -593,7 +596,7 @@ abstract class StateA implements Built<StateA, StateABuilder>, State {
   int get b;
 }
 
-abstract class StateB implements Built<StateB, StateBBuilder>, State {
+abstract class StateB implements Built<StateB, StateBBuilder>, State, __StateB {
   StateB._();
 
   factory StateB(
@@ -689,7 +692,7 @@ abstract class StateB implements Built<StateB, StateBBuilder>, State {
 }
 
 abstract class StateABuilder
-    implements Builder<StateA, StateABuilder>, StateBuilder {
+    implements Builder<StateA, StateABuilder>, StateBuilder, __StateABuilder {
   StateABuilder._();
 
   factory StateABuilder() = _$StateABuilder;

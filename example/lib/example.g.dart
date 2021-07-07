@@ -35,6 +35,8 @@ class _$FooSerializer implements StructuredSerializer<Foo> {
     final result = <Object>[
       'a',
       serializers.serialize(object.a, specifiedType: const FullType(int)),
+      'bar',
+      serializers.serialize(object.bar, specifiedType: const FullType(Bar)),
     ];
 
     return result;
@@ -54,6 +56,10 @@ class _$FooSerializer implements StructuredSerializer<Foo> {
         case 'a':
           result.a = serializers.deserialize(value,
               specifiedType: const FullType(int)) as int;
+          break;
+        case 'bar':
+          result.bar.replace(serializers.deserialize(value,
+              specifiedType: const FullType(Bar)) as Bar);
           break;
       }
     }
@@ -337,12 +343,15 @@ abstract class StateBuilder {
 class _$Foo extends Foo {
   @override
   final int a;
+  @override
+  final Bar bar;
 
   factory _$Foo([void Function(FooBuilder) updates]) =>
       (new FooBuilder()..update(updates)).build();
 
-  _$Foo._({this.a}) : super._() {
+  _$Foo._({this.a, this.bar}) : super._() {
     BuiltValueNullFieldError.checkNotNull(a, 'Foo', 'a');
+    BuiltValueNullFieldError.checkNotNull(bar, 'Foo', 'bar');
   }
 
   @override
@@ -355,17 +364,18 @@ class _$Foo extends Foo {
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is Foo && a == other.a;
+    return other is Foo && a == other.a && bar == other.bar;
   }
 
   @override
   int get hashCode {
-    return $jf($jc(0, a.hashCode));
+    return $jf($jc($jc(0, a.hashCode), bar.hashCode));
   }
 
   @override
   String toString() {
-    return (newBuiltValueToStringHelper('Foo')..add('a', a)).toString();
+    return (newBuiltValueToStringHelper('Foo')..add('a', a)..add('bar', bar))
+        .toString();
   }
 }
 
@@ -376,12 +386,17 @@ class FooBuilder implements Builder<Foo, FooBuilder> {
   int get a => _$this._a;
   set a(int a) => _$this._a = a;
 
+  BarBuilder _bar;
+  BarBuilder get bar => _$this._bar ??= new BarBuilder();
+  set bar(BarBuilder bar) => _$this._bar = bar;
+
   FooBuilder();
 
   FooBuilder get _$this {
     final $v = _$v;
     if ($v != null) {
       _a = $v.a;
+      _bar = $v.bar.toBuilder();
       _$v = null;
     }
     return this;
@@ -400,8 +415,23 @@ class FooBuilder implements Builder<Foo, FooBuilder> {
 
   @override
   _$Foo build() {
-    final _$result = _$v ??
-        new _$Foo._(a: BuiltValueNullFieldError.checkNotNull(a, 'Foo', 'a'));
+    _$Foo _$result;
+    try {
+      _$result = _$v ??
+          new _$Foo._(
+              a: BuiltValueNullFieldError.checkNotNull(a, 'Foo', 'a'),
+              bar: bar.build());
+    } catch (_) {
+      String _$failedField;
+      try {
+        _$failedField = 'bar';
+        bar.build();
+      } catch (e) {
+        throw new BuiltValueNestedFieldError(
+            'Foo', _$failedField, e.toString());
+      }
+      rethrow;
+    }
     replace(_$result);
     return _$result;
   }

@@ -8,11 +8,14 @@
             "name": "Debug generator",
             "type": "dart",
             "request": "launch",
-            "program": "${workspaceRoot}/example/.dart_tool/build/entrypoint/build.dart",
-            "cwd": "${workspaceRoot}/example/",
+            "program": "/home/pedro/projects/template_generator/example/.dart_tool/build/entrypoint/build.dart",
+            "cwd": "/home/pedro/projects/template_generator/example/",
             "args": [
                 "build"
-            ]
+            ],
+            "env": {
+                "PWD": "/home/pedro/projects/template_generator/example/",
+            }
         },
         {
             "name": "template_generator",
