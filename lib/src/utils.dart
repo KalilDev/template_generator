@@ -253,6 +253,7 @@ abstract class QualifiedType implements NormalType {
       'Map');
   static final string = QualifiedType.fromName('String');
   static final dynamic = QualifiedType.fromName('dynamic');
+  static final object = QualifiedType.fromName('Object');
   static final voidType = QualifiedType.fromName('void');
   factory QualifiedType.fromDartType(t.DartType dartType,
       [bool allowsDynamic = false]) {
@@ -1353,8 +1354,10 @@ String UpperCamelCase(String s) {
   return s;
 }
 
-extension on ConstantReader {
+extension MaybeValue on ConstantReader {
   String get maybeStringValue => isNull ? null : stringValue;
+  bool get maybeBoolValue => isNull ? null : boolValue;
+  int get maybeIntValue => isNull ? null : intValue;
 }
 
 final Set<TypeChecker> consumedAnnotationCheckers = {

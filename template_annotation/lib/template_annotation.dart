@@ -4,15 +4,14 @@ const builderTemplate = BuilderTemplate();
 const method = Method();
 const getter = Getter();
 const setter = Setter();
-const specified = SerializationSpec(
-  specifiedFromJson: true,
-  specifiedToJson: true,
-);
-const unspecified = SerializationSpec();
 
 class Template {
-  const Template({this.hiveType});
+  const Template({
+    this.hiveType,
+    this.specifiedType,
+  });
   final int hiveType;
+  final bool specifiedType;
 }
 
 class Union {
@@ -51,13 +50,4 @@ class Getter extends Acessor {
 
 class Setter extends Acessor {
   const Setter({String name}) : super._(name: name);
-}
-
-class SerializationSpec {
-  const SerializationSpec({
-    this.specifiedToJson = false,
-    this.specifiedFromJson = false,
-  });
-  final bool specifiedToJson;
-  final bool specifiedFromJson;
 }

@@ -132,12 +132,15 @@ class TemplateClassFactory extends ClassCodeBuilder {
     unionFactory = union;
   }
 
+  bool get _specifiedType =>
+      templateAnnotation.read('specifiedType')?.maybeBoolValue ??
+      unionFactory == null;
   String get _hiveTypeAnnotation {
-    final type = templateAnnotation.read('hiveType');
-    if (type?.isNull ?? true) {
+    final type = templateAnnotation.read('hiveType')?.maybeIntValue;
+    if (type == null) {
       return '';
     }
-    return '@HiveType(typeId: ${type.intValue})';
+    return '@HiveType(typeId: $type)';
   }
 
   List<String> get _annotations => [
@@ -396,6 +399,7 @@ class TemplateClassFactory extends ClassCodeBuilder {
       functions: await _functions,
       acessors: await _acessors,
       fields: await _fields,
+      specifiedType: _specifiedType,
     )..visitTypes(TypeNameDemangler());
   }
 
@@ -433,6 +437,7 @@ class TemplateClass extends ClassCode {
   final List<FunctionDeclaration> functions;
   final List<AcessorDeclaration> acessors;
   final List<FieldDeclaration> fields;
+  final bool specifiedType;
 
   TemplateClass({
     @required this.annotations,
@@ -446,9 +451,14 @@ class TemplateClass extends ClassCode {
     @required this.functions,
     @required this.acessors,
     @required this.fields,
+    @required this.specifiedType,
   }) : constructors = [constructor];
 
-  static ConcreteFunctionDeclaration fromJson(String className) =>
+  static ConcreteFunctionDeclaration fromJson(
+    String className,
+    String specifiedType,
+    QualifiedType selfType,
+  ) =>
       ConcreteFunctionDeclaration(
         FunctionDeclarationPrelude(
             FunctionParameters(TypeParamList(const []), [
@@ -456,23 +466,62 @@ class TemplateClass extends ClassCode {
                   QualifiedType.mapStringDynamic, 'json', false, [])
             ], [], []),
             'fromJson',
-            QualifiedType.fromName(className),
+            selfType,
             true),
         FunctionArrowBody(
           null,
-          'serializers.deserializeWith($className.serializer, json)',
+          'serializers.deserialize(json, specifiedType: $specifiedType) '
+          'as ${selfType.toSource()}',
         ),
       );
-  static ConcreteFunctionDeclaration toJson() => ConcreteFunctionDeclaration(
-      toJsonPrelude,
-      FunctionArrowBody(
-          null, 'serializers.serialize(this) as Map<String, dynamic>'));
-  static GetterDeclaration serializer(String className) => GetterDeclaration(
-      ParameterizedType(
-          TypeArgumentList([QualifiedType.fromName(className)]), 'Serializer'),
-      true,
-      'serializer',
-      FunctionArrowBody(null, '_\$${lowerCamelCase(className)}Serializer'));
+  static ConcreteFunctionDeclaration toJson(
+    String className,
+    String specifiedType,
+  ) =>
+      ConcreteFunctionDeclaration(
+          toJsonPrelude,
+          FunctionArrowBody(
+              null,
+              'serializers.serialize(this, specifiedType: $specifiedType) '
+              'as Map<String, dynamic>'));
+  static GetterDeclaration serializer(
+    String className,
+    QualifiedType selfType,
+  ) =>
+      GetterDeclaration(
+          ParameterizedType(TypeArgumentList([selfType]), 'Serializer'),
+          true,
+          'serializer',
+          FunctionArrowBody(null, '_\$${lowerCamelCase(className)}Serializer'));
+
+  static String parameterizedTypeToFullTypeInstantiation(
+      ParameterizedType type) {
+    if (type == null ||
+        type == QualifiedType.dynamic ||
+        type == QualifiedType.object) return 'FullType.object';
+    final params = type.typeArguments.arguments
+        .cast<ParameterizedType>()
+        .map(parameterizedTypeToFullTypeInstantiation);
+    return 'FullType(${type.type}, [${params.join(',')}])';
+  }
+
+  String get _specifiedType {
+    if (!specifiedType) {
+      return 'FullType.unspecified';
+    }
+    final typeParams = modifiers.typeParams.params
+        .map((e) => e.constraint)
+        .cast<ParameterizedType>()
+        .map(parameterizedTypeToFullTypeInstantiation);
+
+    return 'FullType($className, [${typeParams.join(',')}])';
+  }
+
+  QualifiedType get _selfBottomType => ParameterizedType(
+      TypeArgumentList(modifiers.typeParams.params
+          .map((e) => e.constraint ?? QualifiedType.object)
+          .toList()),
+      className);
 
   bool get isUnion => visit != null;
   String get additionalBody => '''
@@ -480,12 +529,12 @@ class TemplateClass extends ClassCode {
       ${isUnion ? '@override ${visitCata.toSource()}' : ''}
 
       ${isUnion ? '@override' : '/// Serialize an [$className] to an json object.'}
-      ${toJson().toSource()}
+      ${toJson(className, _specifiedType).toSource()}
 
       /// Deserialize an [$className] from an json object.
-      ${fromJson(className).toSource()}
+      ${fromJson(className, _specifiedType, _selfBottomType).toSource()}
 
       /// The [Serializer] that can serialize and deserialize an [$className].
-      ${serializer(className).toSource()}
+      ${serializer(className, _selfBottomType).toSource()}
       ''';
 }

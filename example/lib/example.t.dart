@@ -221,14 +221,15 @@ abstract class Foo implements Built<Foo, FooBuilder>, __Foo {
   /// Serialize an [Foo] to an json object.
 
   Map<String, dynamic> toJson() =>
-      serializers.serialize(this) as Map<String, dynamic>;
+      serializers.serialize(this, specifiedType: FullType(Foo, []))
+          as Map<String, dynamic>;
 
   /// Deserialize an [Foo] from an json object.
 
   static Foo fromJson(
     Map<String, dynamic> json,
   ) =>
-      serializers.deserializeWith(Foo.serializer, json);
+      serializers.deserialize(json, specifiedType: FullType(Foo, [])) as Foo;
 
   /// The [Serializer] that can serialize and deserialize an [Foo].
 
@@ -261,14 +262,15 @@ abstract class Bar implements Built<Bar, BarBuilder>, __Bar {
   /// Serialize an [Bar] to an json object.
 
   Map<String, dynamic> toJson() =>
-      serializers.serialize(this) as Map<String, dynamic>;
+      serializers.serialize(this, specifiedType: FullType(Bar, []))
+          as Map<String, dynamic>;
 
   /// Deserialize an [Bar] from an json object.
 
   static Bar fromJson(
     Map<String, dynamic> json,
   ) =>
-      serializers.deserializeWith(Bar.serializer, json);
+      serializers.deserialize(json, specifiedType: FullType(Bar, [])) as Bar;
 
   /// The [Serializer] that can serialize and deserialize an [Bar].
 
@@ -361,14 +363,15 @@ abstract class A implements Built<A, ABuilder>, ABC, __A {
 
   @override
   Map<String, dynamic> toJson() =>
-      serializers.serialize(this) as Map<String, dynamic>;
+      serializers.serialize(this, specifiedType: FullType.unspecified)
+          as Map<String, dynamic>;
 
   /// Deserialize an [A] from an json object.
 
   static A fromJson(
     Map<String, dynamic> json,
   ) =>
-      serializers.deserializeWith(A.serializer, json);
+      serializers.deserialize(json, specifiedType: FullType.unspecified) as A;
 
   /// The [Serializer] that can serialize and deserialize an [A].
 
@@ -437,14 +440,15 @@ abstract class B implements Built<B, BBuilder>, ABC, __B {
 
   @override
   Map<String, dynamic> toJson() =>
-      serializers.serialize(this) as Map<String, dynamic>;
+      serializers.serialize(this, specifiedType: FullType.unspecified)
+          as Map<String, dynamic>;
 
   /// Deserialize an [B] from an json object.
 
   static B fromJson(
     Map<String, dynamic> json,
   ) =>
-      serializers.deserializeWith(B.serializer, json);
+      serializers.deserialize(json, specifiedType: FullType.unspecified) as B;
 
   /// The [Serializer] that can serialize and deserialize an [B].
 
@@ -459,6 +463,63 @@ abstract class B implements Built<B, BBuilder>, ABC, __B {
       fn(b: this.b);
 
   int get b;
+}
+
+@HiveType(typeId: 10)
+
+/// C class
+abstract class Generic<T>
+    implements
+        GenericInterface<T>,
+        Built<Generic<T>, GenericBuilder<T>>,
+        __Generic<T> {
+  Generic._() {
+    int foo = 1;
+    foo++;
+  }
+
+  factory Generic([
+    void Function(
+      GenericBuilder<T>,
+    )
+        updates,
+  ]) = _$Generic<T>;
+
+  /// Serialize an [Generic] to an json object.
+
+  Map<String, dynamic> toJson() =>
+      serializers.serialize(this, specifiedType: FullType.unspecified)
+          as Map<String, dynamic>;
+
+  /// Deserialize an [Generic] from an json object.
+
+  static Generic<Object> fromJson(
+    Map<String, dynamic> json,
+  ) =>
+      serializers.deserialize(json, specifiedType: FullType.unspecified)
+          as Generic<Object>;
+
+  /// The [Serializer] that can serialize and deserialize an [Generic].
+
+  static Serializer<Generic<Object>> get serializer => _$genericSerializer;
+
+  R cata<R>(
+    R Function({
+      int c,
+      T t,
+    })
+        fn,
+  ) =>
+      fn(c: this.c, t: this.t);
+
+  /// c
+
+  int get c;
+
+  /// Generic param
+  /// t
+
+  T get t;
 }
 
 @HiveType(typeId: 10)
@@ -520,18 +581,20 @@ abstract class C<T>
 
   @override
   Map<String, dynamic> toJson() =>
-      serializers.serialize(this) as Map<String, dynamic>;
+      serializers.serialize(this, specifiedType: FullType.unspecified)
+          as Map<String, dynamic>;
 
   /// Deserialize an [C] from an json object.
 
-  static C fromJson(
+  static C<Object> fromJson(
     Map<String, dynamic> json,
   ) =>
-      serializers.deserializeWith(C.serializer, json);
+      serializers.deserialize(json, specifiedType: FullType.unspecified)
+          as C<Object>;
 
   /// The [Serializer] that can serialize and deserialize an [C].
 
-  static Serializer<C> get serializer => _$cSerializer;
+  static Serializer<C<Object>> get serializer => _$cSerializer;
 
   R cata<R>(
     R Function({
@@ -594,14 +657,16 @@ abstract class StateA implements Built<StateA, StateABuilder>, State, __StateA {
 
   @override
   Map<String, dynamic> toJson() =>
-      serializers.serialize(this) as Map<String, dynamic>;
+      serializers.serialize(this, specifiedType: FullType.unspecified)
+          as Map<String, dynamic>;
 
   /// Deserialize an [StateA] from an json object.
 
   static StateA fromJson(
     Map<String, dynamic> json,
   ) =>
-      serializers.deserializeWith(StateA.serializer, json);
+      serializers.deserialize(json, specifiedType: FullType.unspecified)
+          as StateA;
 
   /// The [Serializer] that can serialize and deserialize an [StateA].
 
@@ -684,14 +749,16 @@ abstract class StateB implements Built<StateB, StateBBuilder>, State, __StateB {
 
   @override
   Map<String, dynamic> toJson() =>
-      serializers.serialize(this) as Map<String, dynamic>;
+      serializers.serialize(this, specifiedType: FullType.unspecified)
+          as Map<String, dynamic>;
 
   /// Deserialize an [StateB] from an json object.
 
   static StateB fromJson(
     Map<String, dynamic> json,
   ) =>
-      serializers.deserializeWith(StateB.serializer, json);
+      serializers.deserialize(json, specifiedType: FullType.unspecified)
+          as StateB;
 
   /// The [Serializer] that can serialize and deserialize an [StateB].
 
@@ -727,12 +794,15 @@ const List<Type> _$serializableTypes = [
   Bar,
   A,
   B,
+  Generic,
   C,
   StateA,
   StateB,
 ];
 void _$registerHiveTypes([HiveInterface /*?*/ hive]) {
   hive ??= Hive;
-  hive..registerAdapter<C>(CAdapter());
+  hive
+    ..registerAdapter<Generic>(GenericAdapter())
+    ..registerAdapter<C>(CAdapter());
 }
 // ignore_for_file: unnecessary_this, lines_longer_than_80_chars, sort_unnamed_constructors_first, prefer_constructors_over_static_methods, avoid_single_cascade_in_expression_statements

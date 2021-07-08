@@ -12,6 +12,7 @@ Serializers _$serializers = (new Serializers().toBuilder()
       ..add(Bar.serializer)
       ..add(C.serializer)
       ..add(Foo.serializer)
+      ..add(Generic.serializer)
       ..add(StateA.serializer)
       ..add(StateB.serializer))
     .build();
@@ -19,6 +20,7 @@ Serializer<Foo> _$fooSerializer = new _$FooSerializer();
 Serializer<Bar> _$barSerializer = new _$BarSerializer();
 Serializer<A> _$aSerializer = new _$ASerializer();
 Serializer<B> _$bSerializer = new _$BSerializer();
+Serializer<Generic<Object>> _$genericSerializer = new _$GenericSerializer();
 Serializer<C<Object>> _$cSerializer = new _$CSerializer();
 Serializer<StateA> _$stateASerializer = new _$StateASerializer();
 Serializer<StateB> _$stateBSerializer = new _$StateBSerializer();
@@ -177,6 +179,65 @@ class _$BSerializer implements StructuredSerializer<B> {
         case 'b':
           result.b = serializers.deserialize(value,
               specifiedType: const FullType(int)) as int;
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$GenericSerializer implements StructuredSerializer<Generic<Object>> {
+  @override
+  final Iterable<Type> types = const [Generic, _$Generic];
+  @override
+  final String wireName = 'Generic';
+
+  @override
+  Iterable<Object> serialize(Serializers serializers, Generic<Object> object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final isUnderspecified =
+        specifiedType.isUnspecified || specifiedType.parameters.isEmpty;
+    if (!isUnderspecified) serializers.expectBuilder(specifiedType);
+    final parameterT =
+        isUnderspecified ? FullType.object : specifiedType.parameters[0];
+
+    final result = <Object>[
+      'c',
+      serializers.serialize(object.c, specifiedType: const FullType(int)),
+      't',
+      serializers.serialize(object.t, specifiedType: parameterT),
+    ];
+
+    return result;
+  }
+
+  @override
+  Generic<Object> deserialize(
+      Serializers serializers, Iterable<Object> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final isUnderspecified =
+        specifiedType.isUnspecified || specifiedType.parameters.isEmpty;
+    if (!isUnderspecified) serializers.expectBuilder(specifiedType);
+    final parameterT =
+        isUnderspecified ? FullType.object : specifiedType.parameters[0];
+
+    final result = isUnderspecified
+        ? new GenericBuilder<Object>()
+        : serializers.newBuilder(specifiedType) as GenericBuilder<Object>;
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current as String;
+      iterator.moveNext();
+      final Object value = iterator.current;
+      switch (key) {
+        case 'c':
+          result.c = serializers.deserialize(value,
+              specifiedType: const FullType(int)) as int;
+          break;
+        case 't':
+          result.t = serializers.deserialize(value, specifiedType: parameterT);
           break;
       }
     }
@@ -656,6 +717,93 @@ class BBuilder implements Builder<B, BBuilder>, ABCBuilder {
   }
 }
 
+class _$Generic<T> extends Generic<T> {
+  @override
+  final int c;
+  @override
+  final T t;
+
+  factory _$Generic([void Function(GenericBuilder<T>) updates]) =>
+      (new GenericBuilder<T>()..update(updates)).build();
+
+  _$Generic._({this.c, this.t}) : super._() {
+    BuiltValueNullFieldError.checkNotNull(c, 'Generic', 'c');
+    BuiltValueNullFieldError.checkNotNull(t, 'Generic', 't');
+    if (T == dynamic) {
+      throw new BuiltValueMissingGenericsError('Generic', 'T');
+    }
+  }
+
+  @override
+  Generic<T> rebuild(void Function(GenericBuilder<T>) updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GenericBuilder<T> toBuilder() => new GenericBuilder<T>()..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is Generic && c == other.c && t == other.t;
+  }
+
+  @override
+  int get hashCode {
+    return $jf($jc($jc(0, c.hashCode), t.hashCode));
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper('Generic')..add('c', c)..add('t', t))
+        .toString();
+  }
+}
+
+class GenericBuilder<T> implements Builder<Generic<T>, GenericBuilder<T>> {
+  _$Generic<T> _$v;
+
+  int _c;
+  int get c => _$this._c;
+  set c(int c) => _$this._c = c;
+
+  T _t;
+  T get t => _$this._t;
+  set t(T t) => _$this._t = t;
+
+  GenericBuilder();
+
+  GenericBuilder<T> get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _c = $v.c;
+      _t = $v.t;
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(Generic<T> other) {
+    ArgumentError.checkNotNull(other, 'other');
+    _$v = other as _$Generic<T>;
+  }
+
+  @override
+  void update(void Function(GenericBuilder<T>) updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  _$Generic<T> build() {
+    final _$result = _$v ??
+        new _$Generic<T>._(
+            c: BuiltValueNullFieldError.checkNotNull(c, 'Generic', 'c'),
+            t: BuiltValueNullFieldError.checkNotNull(t, 'Generic', 't'));
+    replace(_$result);
+    return _$result;
+  }
+}
+
 class _$C<T> extends C<T> {
   @override
   final int c;
@@ -917,6 +1065,36 @@ class StateBBuilder implements Builder<StateB, StateBBuilder>, StateBuilder {
 // **************************************************************************
 // TypeAdapterGenerator
 // **************************************************************************
+
+class GenericAdapter extends TypeAdapter<Generic> {
+  @override
+  final int typeId = 10;
+
+  @override
+  Generic read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+
+    return (GenericBuilder()).build();
+  }
+
+  @override
+  void write(BinaryWriter writer, Generic obj) {
+    writer..writeByte(0);
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GenericAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
 
 class CAdapter extends TypeAdapter<C> {
   @override

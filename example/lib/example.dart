@@ -68,6 +68,23 @@ mixin _c<T> {
   C doNothing() => C<T>();
 }
 
+@Template(hiveType: 10, specifiedType: false)
+
+/// C class
+abstract class __Generic<T> implements GenericInterface<T> {
+  __Generic() {
+    int foo = 1;
+    foo++;
+  }
+
+  /// c
+  int get c;
+
+  /// Generic param
+  /// t
+  T get t;
+}
+
 @Template(hiveType: 10)
 
 /// C class
