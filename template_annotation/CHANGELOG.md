@@ -1,7 +1,7 @@
 # 1.6.0
 - Added `Method`, `Getter` and `Setter` annotations.
-- Added type specification support on `Template` annotation.
-- Added basic support for an automatic constructor generation.
+- Added specifiedType support on `Template` annotation.
+- Added cataConstructorName support on `Template` annotation.
 
 # 1.5.0
 - Removed `Member` annotation.

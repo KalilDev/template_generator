@@ -1,6 +1,6 @@
 name: template_generator
 description: An code generator for creating built_value classes based on terse templates
-version: 1.5.4
+version: 1.6.0
 # homepage: https://www.example.com
 
 environment:
@@ -20,8 +20,4 @@ dependencies:
 dev_dependencies:
   pedantic: ^1.9.0
   test: ^1.14.4
-
-dependency_overrides:
-  template_annotation:
-    path: template_annotation
 

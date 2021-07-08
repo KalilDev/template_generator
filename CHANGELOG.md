@@ -1,3 +1,11 @@
+# 1.6.0
+- Added codegen support for `Method`, `Getter` and `Setter`
+  annotations.
+- Added codegen for type specification on `Template` annotation.
+- Added basic support for an automatic constructor generation.
+- Redo the AST part, using the `Resolver` instead of hacking 
+  around ElementImpl.
+
 # 1.5.0
 - Add `MixTo` annotation
 
