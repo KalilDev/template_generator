@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:analyzer/dart/ast/ast.dart' as ast;
+import 'package:analyzer/dart/constant/value.dart' as constant;
 
 import 'package:analyzer/dart/element/element.dart' as el;
 import 'package:analyzer/dart/element/type.dart' as t;
@@ -12,6 +13,20 @@ import 'package:template_annotation/template_annotation.dart';
 import 'package:tuple/tuple.dart';
 import 'package:analyzer/dart/ast/token.dart' as token;
 import 'package:collection/collection.dart';
+
+T _id<T>(T v) => v;
+
+extension BiFunctorTuple<A, B> on Tuple2<A, B> {
+  A get l => item1;
+  B get r => item2;
+  Tuple2<A1, B> left<A1>(A1 Function(A) fn) => fmap(fn, _id);
+  Tuple2<A, B1> right<B1>(B1 Function(B) fn) => fmap(_id, fn);
+  Tuple2<A1, B1> fmap<A1, B1>(A1 Function(A) left, B1 Function(B) right) =>
+      Tuple2(left(item1), right(item2));
+  Tuple2<A1, B1> cast<A1, B1>() => Tuple2(item1 as A1, item2 as B1);
+  Tuple2<A1, B> castL<A1>() => Tuple2(item1 as A1, item2);
+  Tuple2<A, B1> castR<B1>() => Tuple2(item1, item2 as B1);
+}
 
 extension Pipe<T> on T {
   R pipe<R>(R Function(T) fn) => fn(this);
@@ -39,8 +54,7 @@ Tuple2<bool, String Function()> failureMessageFor(
       () => errors
           .map((e) => e.toString())
           .map((e) => errorFormat.replaceAll('{}', e))
-          .pipe((es) => StringBuffer()..writeAll(es, '\n'))
-          .pipe((buff) => buff.toString())
+          .pipe((es) => es.join('\n').toString())
           .pipe((es) => format.replaceAll('...{}', es)),
     );
 
@@ -525,7 +539,7 @@ abstract class FunctionParameterWithDefault implements FunctionParameter {
 
 class PositionalRequiredFunctionParameter implements FunctionParameter {
   final QualifiedType type;
-  final String name;
+  String name;
   final bool isCovariant;
   final List<String> annotations;
 
@@ -681,7 +695,7 @@ class NamedFunctionParameter implements FunctionParameterWithDefault {
 }
 
 class FunctionParameters implements Code {
-  final TypeParamList typeParams;
+  TypeParamList typeParams;
   final List<PositionalRequiredFunctionParameter> normal;
   final List<PositionalOptionalFunctionParameter> optional;
   final List<NamedFunctionParameter> named;
@@ -1155,8 +1169,8 @@ class FunctionDeclarationPrelude
 class ClassModifiers implements Code {
   final TypeParamList typeParams;
   QualifiedType superType;
-  final List<QualifiedType> implemented;
-  final List<QualifiedType> mixed;
+  final Set<QualifiedType> implemented;
+  final Set<QualifiedType> mixed;
 
   ClassModifiers(
     this.typeParams,
@@ -1196,8 +1210,8 @@ class ClassModifiers implements Code {
       return ClassModifiers(
         typeParams,
         superType,
-        implemented,
-        mixed,
+        implemented.toSet(),
+        mixed.toSet(),
       );
     } on QualifiedTypeError catch (e) {
       throw e.withContext('ClassModifiers.fromElement(${cls.location})');
@@ -1339,12 +1353,20 @@ String UpperCamelCase(String s) {
   return s;
 }
 
+extension on ConstantReader {
+  String get maybeStringValue => isNull ? null : stringValue;
+}
+
 final Set<TypeChecker> consumedAnnotationCheckers = {
   templateChecker,
   unionChecker,
   constructorChecker,
   builderTemplateChecker,
   mixToChecker,
+  methodChecker,
+  acessorChecker,
+  getterChecker,
+  setterChecker,
 };
 final templateChecker = TypeChecker.fromRuntime(Template);
 final unionChecker = TypeChecker.fromRuntime(Union);
@@ -1352,6 +1374,26 @@ final hiveTypeChecker = TypeChecker.fromRuntime(HiveType);
 final constructorChecker = TypeChecker.fromRuntime(Constructor);
 final builderTemplateChecker = TypeChecker.fromRuntime(BuilderTemplate);
 final mixToChecker = TypeChecker.fromRuntime(MixTo);
+final methodChecker = TypeChecker.fromRuntime(Method);
+final acessorChecker = TypeChecker.fromRuntime(Acessor);
+final getterChecker = TypeChecker.fromRuntime(Getter);
+final setterChecker = TypeChecker.fromRuntime(Setter);
+
+Method methodAnnotationFrom(el.Element element) =>
+    <Tuple2<TypeChecker, Method Function(String)>>[
+      Tuple2(methodChecker, (name) => Method(name: name)),
+      Tuple2(getterChecker, (name) => Getter(name: name)),
+      Tuple2(setterChecker, (name) => Setter(name: name)),
+    ].fold<Method>(
+        null,
+        (obj, checker) =>
+            obj ??
+            (!checker.item1.hasAnnotationOfExact(element)
+                ? null
+                : checker.item2(ConstantReader(
+                        checker.item1.annotationsOfExact(element).single)
+                    .read('name')
+                    .maybeStringValue)));
 
 Iterable<String> bypassedAnnotationsFor(el.Element e) {
   final disallowedAnnotations = consumedAnnotationCheckers.followedBy([
@@ -1434,6 +1476,11 @@ extension IterableE<T> on Iterable<T> {
 List<AcessorDeclaration> staticFieldRedirect(
         FieldDeclaration staticField, String sourceClassName) =>
     staticField.toAcessors((fieldName) => '$sourceClassName.$fieldName');
+
+bool listContains<T>(List<T> container, List<T> contained) => container.length <
+        contained.length
+    ? false
+    : container.zip(contained).map((e) => e.l == e.r).every((e) => e == true);
 
 FieldDeclaration staticFunctionRedirect(
   ConcreteFunctionDeclaration staticFunction,

@@ -17,20 +17,6 @@ import 'package:analyzer/src/dart/element/element.dart' as el_impl;
 import 'package:tuple/tuple.dart';
 import 'package:meta/meta.dart';
 
-T _id<T>(T v) => v;
-
-extension BiFunctorTuple<A, B> on Tuple2<A, B> {
-  A get l => item1;
-  B get r => item2;
-  Tuple2<A1, B> left<A1>(A1 Function(A) fn) => fmap(fn, _id);
-  Tuple2<A, B1> right<B1>(B1 Function(B) fn) => fmap(_id, fn);
-  Tuple2<A1, B1> fmap<A1, B1>(A1 Function(A) left, B1 Function(B) right) =>
-      Tuple2(left(item1), right(item2));
-  Tuple2<A1, B1> cast<A1, B1>() => Tuple2(item1 as A1, item2 as B1);
-  Tuple2<A1, B> castL<A1>() => Tuple2(item1 as A1, item2);
-  Tuple2<A, B1> castR<B1>() => Tuple2(item1, item2 as B1);
-}
-
 class Try<T> {
   final T Function() _fn;
 
@@ -123,10 +109,12 @@ class TemplateClassFactory extends ClassCodeBuilder {
           .wait()
           .then((e) => e.map((e) => e.left((e) => e.read("name"))).map((e) =>
               Tuple2(e.item1.isString ? e.item1.stringValue : null, e.item2)));
-  Future<List<ConcreteFunctionDeclaration>> get _notAnnotatedWithConstructor =>
-      cls.methods
+  Future<List<ConcreteFunctionDeclaration>>
+      get _notAnnotatedWithConstructorOrMethod => cls.methods
           .where((e) => e.isStatic)
-          .where((e) => !constructorChecker.hasAnnotationOf(e))
+          .where((e) =>
+              !constructorChecker.hasAnnotationOf(e) &&
+              !methodChecker.hasAnnotationOf(e))
           .map((e) => FunctionDeclaration.fromElement(e, resolver)
               .then((e) => e as ConcreteFunctionDeclaration))
           .wait();
@@ -351,13 +339,15 @@ class TemplateClassFactory extends ClassCodeBuilder {
 
   Future<List<FunctionDeclaration>> get _functions async => [
         await _cataFunctionDeclaration(),
+        ...await memberizedStaticMethods,
       ];
   Future<List<AcessorDeclaration>> get _acessors async => [
         ..._concreteFields.bind((e) => staticFieldRedirect(e, className)),
         ...await _abstractGetterDeclarations,
+        ...await memberizedStaticAcessors
       ];
   Future<List<FieldDeclaration>> get _fields async => [
-        ...(await _notAnnotatedWithConstructor)
+        ...(await _notAnnotatedWithConstructorOrMethod)
             .map((e) => staticFunctionRedirect(e, className))
       ];
 

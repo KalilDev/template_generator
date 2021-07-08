@@ -282,7 +282,29 @@ abstract class Bar implements Built<Bar, BarBuilder>, __Bar {
   ) =>
       fn(a: this.a);
 
+  @Method(name: 'notReturnA')
+  int notReturnA() => __Bar.__returnA(
+        this,
+      );
+
   int get a;
+
+  @Getter()
+  int get b => __Bar.__getB(
+        this,
+      );
+
+  @Setter()
+  set b(int a2) => __Bar.__setB(
+        this,
+        a2,
+      );
+
+  @Setter(name: 'aaaa')
+  set aaaa(int a2) => __Bar.__setNotB(
+        this,
+        a2,
+      );
 
   static const init = __Bar.init;
 }

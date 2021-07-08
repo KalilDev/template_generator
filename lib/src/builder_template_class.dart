@@ -62,11 +62,12 @@ class BuilderTemplateClassFactory extends ClassCodeBuilder {
   @override
   final Set<QualifiedType> mixins = {};
 
-  List<AcessorDeclaration> get _acessors => [
+  Future<List<AcessorDeclaration>> get _acessors async => [
         ...cls.fields
             .where((e) => e.isStatic)
             .map((e) => FieldDeclaration.fromElement(e))
             .bind((e) => staticFieldRedirect(e, className)),
+        ...await memberizedStaticAcessors,
       ];
   Future<List<FieldDeclaration>> get _fields async => [
         ...(await cls.methods
@@ -76,15 +77,19 @@ class BuilderTemplateClassFactory extends ClassCodeBuilder {
                 decls.map((e) => staticFunctionRedirect(e, className)))),
         ...cls.fields.map((e) => FieldDeclaration.fromElement(e))
       ];
+  Future<List<FunctionDeclaration>> get _functions async => [
+        ...await memberizedStaticMethods,
+      ];
 
   @override
   Future<ClassCode> build() async => BuilderTemplateClass(
-        comment: cls.documentationComment,
-        className: demangledClassName,
-        modifiers: await modifiers,
-        acessors: _acessors,
-        fields: await _fields,
-      )..visitTypes(TypeNameDemangler());
+      comment: cls.documentationComment,
+      className: demangledClassName,
+      modifiers: await modifiers,
+      acessors: await _acessors,
+      fields: await _fields,
+      functions: await _functions)
+    ..visitTypes(TypeNameDemangler());
 
   @override
   ASTNodeResolver resolver;
@@ -111,6 +116,7 @@ class BuilderTemplateClass extends ClassCode {
 
   final List<AcessorDeclaration> acessors;
   final List<FieldDeclaration> fields;
+  final List<FunctionDeclaration> functions;
 
   BuilderTemplateClass({
     @required this.comment,
@@ -118,5 +124,6 @@ class BuilderTemplateClass extends ClassCode {
     @required this.modifiers,
     @required this.acessors,
     @required this.fields,
+    @required this.functions,
   });
 }

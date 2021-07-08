@@ -45,8 +45,16 @@ extension _Unwrap3a<T1, T2, T3, T4>
 class TemplateGenerator extends Generator {
   @override
   FutureOr<String> generate(LibraryReader library, BuildStep buildStep) async {
-    Future<AstNode> resolver(Element e) =>
-        buildStep.resolver.astNodeFor(e, resolve: false);
+    final resolverCache = Expando<AstNode>('Resolver Cache');
+    Future<AstNode> cachingResolver(Element e) async {
+      final cached = resolverCache[e];
+      if (cached != null) {
+        return cached;
+      }
+      return resolverCache[e] =
+          await buildStep.resolver.astNodeFor(e, resolve: false);
+    }
+
     final unitedToUnion = <ClassElement, UnionClassFactory>{};
     final nameToTemplate = <String, TemplateClassFactory>{};
     final builders = <String, ClassCodeBuilder>{};
@@ -60,7 +68,7 @@ class TemplateGenerator extends Generator {
       final uFactory = UnionClassFactory()
         ..cls = union
         ..unionAnnotation = annotation
-        ..resolver = resolver;
+        ..resolver = cachingResolver;
 
       unitedToUnion.addEntries(
         annotation
@@ -80,7 +88,7 @@ class TemplateGenerator extends Generator {
         ..templateAnnotation = ConstantReader(
           util.templateChecker.annotationsOfExact(template).single,
         )
-        ..resolver = resolver;
+        ..resolver = cachingResolver;
       if (unitedToUnion.containsKey(template)) {
         final union = unitedToUnion.remove(template);
         union.addMember(tFactory);
@@ -98,7 +106,7 @@ class TemplateGenerator extends Generator {
               .annotationsOfExact(builderTemplate)
               .single,
         )
-        ..resolver = resolver;
+        ..resolver = cachingResolver;
       final templateName = bFactory.templateClassName();
       final template = nameToTemplate.remove(templateName);
       util.verify(template != null,

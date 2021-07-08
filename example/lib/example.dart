@@ -31,6 +31,16 @@ abstract class __Bar {
   int get a;
 
   static void init() {}
+  @Method(name: 'notReturnA')
+  static int __returnA(Bar self) => self.a;
+
+  @Getter()
+  static int __getB(Bar self) => self.a;
+
+  @Setter()
+  static __setB(Bar self, int a2) => null;
+  @Setter(name: 'aaaa')
+  static __setNotB(Bar self, int a2) => null;
 }
 
 @template
