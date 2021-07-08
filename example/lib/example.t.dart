@@ -10,34 +10,27 @@ part of 'example.dart';
 
 /// ABC class
 abstract class ABC implements __ABC {
-  static A a([
-    void Function(
-      ABuilder,
-    )
-        updates,
-  ]) =>
+  static A a(
+    int a,
+  ) =>
       A(
-        updates,
+        a,
       );
 
-  static B b([
-    void Function(
-      BBuilder,
-    )
-        updates,
-  ]) =>
+  static B b(
+    int b,
+  ) =>
       B(
-        updates,
+        b,
       );
 
-  static C<T> c<T>([
-    void Function(
-      CBuilder<T>,
-    )
-        updates,
-  ]) =>
+  static C<T> c<T>(
+    int c,
+    T t,
+  ) =>
       C<T>(
-        updates,
+        c,
+        t,
       );
 
   /// Rebuilds the instance.
@@ -116,14 +109,11 @@ abstract class ABC implements __ABC {
 
 @BuiltValue(instantiable: false)
 abstract class State implements __State {
-  static StateA a([
-    void Function(
-      StateABuilder,
-    )
-        updates,
-  ]) =>
+  static StateA a(
+    int b,
+  ) =>
       StateA(
-        updates,
+        b,
       );
 
   static StateB b(
@@ -252,12 +242,10 @@ abstract class Foo implements Built<Foo, FooBuilder>, __Foo {
 abstract class Bar implements Built<Bar, BarBuilder>, __Bar {
   Bar._();
 
-  factory Bar([
-    void Function(
-      BarBuilder,
-    )
-        updates,
-  ]) = _$Bar;
+  factory Bar(
+    int a,
+  ) =>
+      _$Bar((__bdr) => __bdr..a = a);
 
   /// Serialize an [Bar] to an json object.
 
@@ -314,12 +302,10 @@ abstract class Bar implements Built<Bar, BarBuilder>, __Bar {
 abstract class A implements Built<A, ABuilder>, ABC, __A {
   A._();
 
-  factory A([
-    void Function(
-      ABuilder,
-    )
-        updates,
-  ]) = _$A;
+  factory A(
+    int a,
+  ) =>
+      _$A((__bdr) => __bdr..a = a);
 
   @override
   R visit<R>({
@@ -391,12 +377,10 @@ abstract class A implements Built<A, ABuilder>, ABC, __A {
 abstract class B implements Built<B, BBuilder>, ABC, __B {
   B._();
 
-  factory B([
-    void Function(
-      BBuilder,
-    )
-        updates,
-  ]) = _$B;
+  factory B(
+    int b,
+  ) =>
+      _$B((__bdr) => __bdr..b = b);
 
   @override
   R visit<R>({
@@ -478,12 +462,13 @@ abstract class Generic<T>
     foo++;
   }
 
-  factory Generic([
-    void Function(
-      GenericBuilder<T>,
-    )
-        updates,
-  ]) = _$Generic<T>;
+  factory Generic(
+    int c,
+    T t,
+  ) =>
+      _$Generic<T>((__bdr) => __bdr
+        ..c = c
+        ..t = t);
 
   /// Serialize an [Generic] to an json object.
 
@@ -532,12 +517,13 @@ abstract class C<T>
     foo++;
   }
 
-  factory C([
-    void Function(
-      CBuilder<T>,
-    )
-        updates,
-  ]) = _$C<T>;
+  factory C(
+    int c,
+    T t,
+  ) =>
+      _$C<T>((__bdr) => __bdr
+        ..c = c
+        ..t = t);
 
   @override
   R visit<R>({
@@ -618,12 +604,10 @@ abstract class C<T>
 abstract class StateA implements Built<StateA, StateABuilder>, State, __StateA {
   StateA._();
 
-  factory StateA([
-    void Function(
-      StateABuilder,
-    )
-        updates,
-  ]) = _$StateA;
+  factory StateA(
+    int b,
+  ) =>
+      _$StateA((__bdr) => __bdr..b = b);
 
   @override
   R visit<R>({

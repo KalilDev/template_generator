@@ -11,7 +11,7 @@ part 'example.g.dart';
 final Serializers serializers =
     (_$serializers.toBuilder()..addPlugin(StandardJsonPlugin())).build();
 
-@template
+@Template(cataConstructorName: null)
 abstract class __Foo {
   int get a;
   Bar get bar;

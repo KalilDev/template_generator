@@ -74,13 +74,15 @@ class TemplateClassFactory extends ClassCodeBuilder {
 
   bool get hasHiveType => _hiveTypeAnnotation?.isNotEmpty ?? false;
 
-  Future<List<AcessorDeclaration>> get _abstractGetterDeclarations async => cls
+  Future<List<GetterDeclaration>> get _abstractGetterDeclarations async => cls
       .accessors
       .where((e) => e.isGetter && e.isAbstract)
       .map(liftTry)
       .map((e) => e
           .fmap((e) => AcessorDeclaration.fromElement(e, resolver))
-          .fmap((e) => e.then((e) => e..visitTypes(TypeNameDemangler()))))
+          .fmap((e) => e
+              .then((e) => e as GetterDeclaration)
+              .then((e) => e..visitTypes(TypeNameDemangler()))))
       .pipe(runTries)
       .pipe((e) => handlePartitionedErrors(
           e,
@@ -135,6 +137,8 @@ class TemplateClassFactory extends ClassCodeBuilder {
   bool get _specifiedType =>
       templateAnnotation.read('specifiedType')?.maybeBoolValue ??
       unionFactory == null;
+  String get _cataConstructorName =>
+      templateAnnotation.read('cataConstructorName')?.maybeStringValue;
   String get _hiveTypeAnnotation {
     final type = templateAnnotation.read('hiveType')?.maybeIntValue;
     if (type == null) {
@@ -174,7 +178,7 @@ class TemplateClassFactory extends ClassCodeBuilder {
       '$demangledClassName._();';
 
   static String generatedFactoryName(String className) => '_\$$className';
-  static FactoryDeclaration defaultRedirectingFactoryName(
+  static FactoryDeclaration defaultRedirectingFactory(
     TypeParamList typeParams,
     String className,
     String builderName,
@@ -204,6 +208,54 @@ class TemplateClassFactory extends ClassCodeBuilder {
         generatedFactoryName(className),
         false,
       );
+  static FactoryDeclaration defaultCataFactory(
+    TypeParamList typeParams,
+    String className,
+    String builderName,
+    List<GetterDeclaration> fields,
+    String targetName,
+  ) {
+    final parameters = FunctionParameters(
+      typeParams,
+      [
+        if (fields.length <= 2)
+          ...fields.map((e) => PositionalRequiredFunctionParameter(
+                e.type,
+                e.name,
+                false,
+                [],
+              ))
+      ],
+      [],
+      [
+        if (fields.length > 2)
+          ...fields.map((e) => NamedFunctionParameter(
+              e.type,
+              e.name,
+              false,
+              [],
+              e.type is ParameterizedType
+                  ? (e.type as ParameterizedType).type == 'Maybe'
+                      ? 'const None()'
+                      : null
+                  : null,
+              !e.annotations.any((e) => e.trim() == '@nullable')))
+      ],
+    );
+    final body = fields.fold<StringBuffer>(
+        StringBuffer(generatedFactoryName(className))
+          ..write(typeParams.toArguments().toSource())
+          ..write('((__bdr)=>__bdr'),
+        (buff, e) => buff..writeln('..${e.name} = ${e.name}'))
+      ..write(')');
+    return ConcreteFactoryDeclaration(
+      parameters,
+      className,
+      targetName,
+      FunctionArrowBody(null, body.toString()),
+    );
+  }
+
   static FactoryDeclaration staticFactoryConstructor(
           ConcreteFunctionDeclaration staticFactory,
           TypeParamList typeParams,
@@ -324,11 +376,19 @@ class TemplateClassFactory extends ClassCodeBuilder {
     return [
       if ((await _annotatedWithConstructor)
           .every((e) => e.item1 != null && e.item1.isNotEmpty))
-        defaultRedirectingFactoryName(
-          typeParams,
-          demangledClassName,
-          builderClassName,
-        ),
+        _cataConstructorName == ''
+            ? defaultCataFactory(
+                typeParams,
+                demangledClassName,
+                builderClassName,
+                await _abstractGetterDeclarations,
+                '',
+              )
+            : defaultRedirectingFactory(
+                typeParams,
+                demangledClassName,
+                builderClassName,
+              ),
       ...(await _annotatedWithConstructor) //
           .map((e) => staticFactoryConstructor(
                 e.item2,
@@ -336,7 +396,15 @@ class TemplateClassFactory extends ClassCodeBuilder {
                 e.item1,
                 className,
                 demangledClassName,
-              ))
+              )),
+      if (_cataConstructorName != '' && _cataConstructorName != null)
+        defaultCataFactory(
+          typeParams,
+          demangledClassName,
+          builderClassName,
+          await _abstractGetterDeclarations,
+          _cataConstructorName,
+        ),
     ];
   }
 

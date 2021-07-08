@@ -9,9 +9,11 @@ class Template {
   const Template({
     this.hiveType,
     this.specifiedType,
+    this.cataConstructorName = '',
   });
   final int hiveType;
   final bool specifiedType;
+  final String cataConstructorName;
 }
 
 class Union {
